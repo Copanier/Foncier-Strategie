@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FONCIER STRATÉGIE – Valorisation & Cession de Foncier</title>
+<script>(function(){window.onerror=function(){return true;};window.addEventListener('error',function(e){e.stopPropagation();e.preventDefault();},true);window.addEventListener('unhandledrejection',function(e){e.preventDefault();});})();
+// ─── RECHERCHE PAGE ──────────────────────────────────────────────
+let rMapInitialized = false;
+let rMap, rSelectedParcels = [], rSelGeoJSON = {type:'FeatureCollection',features:[]};
+const rSelectedProjects = new Set();
+
+function showRecherche() {
+  mainSite.style.display = 'none';
+  cartePage.classList.remove('active');
+  document.getElementById('recherchePage').style.display = 'block';
+  window.scrollTo(0,0);
+  if (!rMapInitialized) {
+    loadMapLibre(() => { setTimeout(() => { initRMap(); rMapInitialized = true; }, 150); });
+  } else {
+    setTimeout(() => { if (rMap) rMap.resize(); }, 200);
+  }
+  return false;
+}
+
+
+
+function initRMap() {
+  if (!window.maplibregl) { document.getElementById('rMapFallback').style.display = 'flex'; return; }
+  try {
+    rMap = new maplibregl.Map({container:'rMap', style:makeMapStyle(), center:[2.5,46.5], zoom:6});
+    rMap.addControl(new maplibregl.NavigationControl(),'top-right');
+    rMap.on('mouseenter','parc-fill',()=>{rMap.getCanvas().style.cursor='pointer';});
+    rMap.on('mouseleave','parc-fill',()=>{rMap.getCanvas().style.cursor='';});
+    rMap.on('click', onRMapClick);
+    rMap.on('zoom',updateRMapHint);
+    rMap.on('load',updateRMapHint);
+  } catch(e) { console.error(e); document.getElementById('rMapFallback').style.display = 'flex'; }
+}
+function updateRMapHint(){if(!rMap)return;const z=rMap.getZoom(),box=document.getElementById('rMapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre zone de recherche';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez pour sélectionner';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
+
+function toggleRCadastre(on) {
+  if (!rMap) return;
+  document.getElementById('rBtnCadastreOn').classList.toggle('active', on);
+  document.getElementById('rBtnCadastreOff').classList.toggle('active', !on);
+  const v=on?'visible':'none';
+  ['parc-fill','parc-line'].forEach(l=>{if(rMap.getLayer(l))rMap.setLayoutProperty(l,'visibility',v);});
+}
+
+function onRMapClick(e) {
+  const z=rMap.getZoom();
+  if(z<13){document.getElementById('rMapInfoBox').textContent='🔍 Zoomez davantage (niveau 13 minimum)';return;}
+  const features=rMap.queryRenderedFeatures(e.point,{layers:['parc-fill']});
+  if(features.length>0){
+    const f=features[0],p=f.properties;
+    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
+    if(rSelectedParcels.find(x=>x.id===id)){showRMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
+    rSelGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
+    if(rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);
+    try{rMap.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
+    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
+    rSelectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
+    renderRParcels();showRMapInfo('✅ Parcelle sélectionnée — '+surface);
+  }else{
+    showRMapInfo('⚠️ Zoomez davantage (zoom ≥ 15) et cliquez sur une parcelle orange');
+  }
+}
+
+function removeRParcel(id){rSelectedParcels=rSelectedParcels.filter(x=>x.id!==id);rSelGeoJSON.features=rSelGeoJSON.features.filter(f=>f.properties.id!==id);if(rMap&&rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);renderRParcels();}
+function renderRParcels() { const l = document.getElementById('rParcelsList'); const badge = document.getElementById('rParcelsBadge'); if (!rSelectedParcels.length) { l.innerHTML = '<p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p>'; if(badge) badge.style.display='none'; return; } if(badge){ badge.style.display='flex'; badge.textContent='📌 '+rSelectedParcels.length+' parcelle'+(rSelectedParcels.length>1?'s':'')+' sélectionnée'+(rSelectedParcels.length>1?'s':''); } l.innerHTML = rSelectedParcels.map(p => `<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeRParcel('${p.id}')">✕</button></div>`).join(''); }
+function showRMapInfo(msg){document.getElementById('rMapInfoBox').textContent=msg;setTimeout(()=>{if(rMap)document.getElementById('rMapInfoBox').textContent=rMap.getZoom()<14?'🔍 Zoomez davantage (≥ 14)':'✅ Cliquez sur une parcelle pour la sélectionner';},3500);}
+async function searchRAddress(){const q=document.getElementById('r_addressSearch').value.trim();if(!q||!rMap)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;rMap.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(rMap).togglePopup();}}catch(e){}}
+function toggleRProject(el) { const v = el.dataset.value; if (rSelectedProjects.has(v)) { rSelectedProjects.delete(v); el.classList.remove('selected'); } else { rSelectedProjects.add(v); el.classList.add('selected'); } }
+async function submitRForm() {
+  const n=document.getElementById('r_nom').value.trim(),p=document.getElementById('r_prenom').value.trim(),t=document.getElementById('r_tel').value.trim(),e=document.getElementById('r_email').value.trim();
+  if(!n||!p||!t||!e){alert('Veuillez remplir les champs obligatoires.');return;}
+  if(!rSelectedProjects.size){alert('Veuillez sélectionner au moins un type de bien.');return;}
+  try {
+    const {error} = await db.from('recherches').insert({
+      nom:n, prenom:p, tel:t, email:e,
+      societe:document.getElementById('r_societe').value,
+      qualite:document.getElementById('r_qualite').value,
+      surface_min:parseFloat(document.getElementById('r_surface').value)||null,
+      types_bien:[...rSelectedProjects].join(', '),
+      notes:document.getElementById('r_description').value,
+      parcelles:JSON.stringify(rSelectedParcels)
+    });
+    if(error){alert('Erreur : '+error.message);return;}
+  } catch(err){alert('Erreur connexion : '+err.message);return;}
+  document.getElementById('rSuccessModal').classList.add('active');
+}
+function closeRModal() { document.getElementById('rSuccessModal').classList.remove('active'); showMain(); }
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--gold:#B8973A;--gold-light:#D4AF57;--gold-pale:#F0E4BB;--navy:#0F1E2D;--navy-mid:#1A3048;--navy-light:#243E57;--cream:#F8F4EC;--white:#FFFFFF;--gray:#6B7A89;--font-serif:'Cormorant Garamond','Palatino Linotype',Palatino,Georgia,serif;--font-sans:'Raleway',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font-sans);background:var(--cream);color:#2C3E50;overflow-x:hidden;}
+::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:var(--navy);}::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px;}
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(15,30,45,0.97);backdrop-filter:blur(12px);border-bottom:1px solid rgba(184,151,58,0.2);display:flex;align-items:center;justify-content:space-between;padding:0 4rem;height:72px;}
+.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none;}
+.nav-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold-light));clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--navy);font-weight:800;flex-shrink:0;}
+.nav-logo-text{display:flex;flex-direction:column;}
+.nav-logo-name{font-family:var(--font-serif);font-size:1.1rem;color:var(--white);letter-spacing:2px;line-height:1;}
+.nav-logo-sub{font-size:0.58rem;color:var(--gold);letter-spacing:4px;text-transform:uppercase;margin-top:2px;}
+.nav-links{display:flex;gap:2rem;list-style:none;align-items:center;}
+.nav-links a{color:rgba(255,255,255,0.75);text-decoration:none;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;transition:color .25s;position:relative;}
+.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;right:0;height:1px;background:var(--gold);transform:scaleX(0);transition:transform .25s;}
+.nav-links a:hover{color:var(--gold);}
+.nav-links a:hover::after{transform:scaleX(1);}
+.nav-cta{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy)!important;padding:10px 22px;border-radius:2px;font-weight:600!important;}
+.nav-cta:hover{box-shadow:0 4px 20px rgba(184,151,58,0.4);}
+.nav-cta::after{display:none!important;}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:8px;}
+.hamburger span{display:block;width:24px;height:2px;background:var(--white);}
+.nav-drawer{position:fixed;top:72px;left:0;right:0;background:var(--navy);z-index:999;padding:1.5rem 2rem 2rem;transform:translateY(-110%);transition:transform .35s;border-bottom:1px solid rgba(184,151,58,0.2);}
+.nav-drawer.open{transform:translateY(0);}
+.nav-drawer ul{list-style:none;}
+.nav-drawer a{display:block;padding:1rem 0;color:rgba(255,255,255,0.75);text-decoration:none;font-size:0.78rem;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid rgba(184,151,58,0.1);}
+#hero{min-height:100vh;position:relative;display:flex;align-items:center;overflow:hidden;}
+.hero-bg{position:absolute;inset:0;background:linear-gradient(160deg,rgba(15,30,45,0.92) 0%,rgba(15,30,45,0.7) 50%,rgba(15,30,45,0.85) 100%),url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1800&q=80') center/cover no-repeat;}
+.hero-bg::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,rgba(184,151,58,0.12) 0%,transparent 60%);}
+.hero-decorline{position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(to bottom,transparent,var(--gold),transparent);}
+.hero-content{position:relative;z-index:1;max-width:760px;padding:0 4rem;padding-top:72px;animation:fadeInUp 1s ease both;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(184,151,58,0.15);border:1px solid rgba(184,151,58,0.4);padding:6px 16px;border-radius:2px;margin-bottom:2rem;}
+.hero-badge span{font-size:0.65rem;letter-spacing:3px;color:var(--gold);text-transform:uppercase;}
+.hero-badge::before{content:'◆';font-size:8px;color:var(--gold);}
+h1{font-family:var(--font-serif);font-size:clamp(2.8rem,5vw,4.5rem);color:var(--white);line-height:1.08;font-weight:300;margin-bottom:1.5rem;}
+h1 em{font-style:italic;color:var(--gold-light);}
+.hero-sub{font-size:1rem;color:rgba(255,255,255,0.7);line-height:1.8;font-weight:300;max-width:540px;margin-bottom:2.5rem;}
+.hero-actions{display:flex;gap:1rem;flex-wrap:wrap;}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);border:none;padding:14px 32px;font-family:var(--font-sans);font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:600;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
+.btn-primary:hover{box-shadow:0 8px 30px rgba(184,151,58,0.4);transform:translateY(-2px);}
+.btn-ghost{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,0.4);padding:14px 32px;font-family:var(--font-sans);font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold);}
+.hero-stats{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:1px;z-index:1;}
+.hero-stat{background:rgba(15,30,45,0.85);border-left:3px solid var(--gold);padding:20px 28px;min-width:160px;backdrop-filter:blur(8px);}
+.hero-stat-num{font-family:var(--font-serif);font-size:2rem;color:var(--gold);line-height:1;}
+.hero-stat-label{font-size:0.65rem;color:rgba(255,255,255,0.6);letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+.hero-scroll{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:1;color:rgba(255,255,255,0.4);font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;animation:bounce 2s infinite;}
+.hero-scroll::after{content:'↓';font-size:1rem;color:var(--gold);}
+#promesse{background:var(--navy);padding:5rem 4rem;display:grid;grid-template-columns:1fr 2px 1fr 2px 1fr;}
+.promesse-divider{background:rgba(184,151,58,0.2);}
+.promesse-item{padding:2rem 3rem;text-align:center;}
+.promesse-icon{font-size:2rem;margin-bottom:1rem;}
+.promesse-title{font-family:var(--font-serif);font-size:1.3rem;color:var(--white);margin-bottom:.75rem;}
+.promesse-text{font-size:.8rem;color:rgba(255,255,255,0.5);line-height:1.8;}
+section{padding:7rem 4rem;}
+.section-label{display:flex;align-items:center;gap:12px;margin-bottom:1rem;}
+.section-label span{font-size:.65rem;letter-spacing:4px;text-transform:uppercase;color:var(--gold);font-weight:600;}
+.section-label::after{content:'';flex:0 0 30px;height:1px;background:var(--gold-pale);}
+h2{font-family:var(--font-serif);font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);line-height:1.15;font-weight:300;}
+h2 em{color:var(--gold);font-style:italic;}
+.section-intro{font-size:.95rem;color:var(--gray);line-height:1.9;max-width:620px;font-weight:300;margin-top:1.2rem;}
+#typologies{background:var(--cream);}
+.typo-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4rem;flex-wrap:wrap;gap:2rem;}
+.typo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.5px;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.15);}
+.typo-card{background:var(--white);overflow:hidden;cursor:pointer;position:relative;aspect-ratio:4/3;display:flex;flex-direction:column;justify-content:flex-end;}
+.typo-card-img{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:transform .5s;}
+.typo-card-icon{font-size:5.5rem;opacity:.28;transition:opacity .4s,transform .5s;user-select:none;pointer-events:none;line-height:1;}
+.typo-card:hover .typo-card-img{transform:scale(1.04);}
+.typo-card:hover .typo-card-icon{opacity:.5;transform:scale(1.12);}
+.typo-card::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(5,15,30,0.92) 0%,rgba(5,15,30,0.3) 55%,transparent 100%);}
+.typo-card-content{position:relative;z-index:1;padding:1.5rem 1.5rem 1.2rem;}
+.typo-card-cat{font-size:.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem;}
+.typo-card-title{font-family:var(--font-serif);font-size:1.15rem;color:var(--white);line-height:1.2;}
+.typo-card-arrow{position:absolute;top:1.2rem;right:1.2rem;z-index:1;width:32px;height:32px;border:1px solid rgba(184,151,58,0);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:.8rem;transition:all .3s;}
+.typo-card:hover .typo-card-arrow{background:rgba(184,151,58,0.2);border-color:var(--gold);}
+#processus{background:var(--navy);position:relative;overflow:hidden;}
+#processus::before{content:'FONCIER';position:absolute;font-family:var(--font-serif);font-size:14rem;font-weight:700;color:rgba(184,151,58,0.04);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;letter-spacing:20px;}
+#processus h2{color:var(--white);}
+#processus .section-intro{color:rgba(255,255,255,0.5);}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);margin-top:4rem;position:relative;}
+.steps::before{content:'';position:absolute;top:40px;left:12.5%;right:12.5%;height:1px;background:linear-gradient(to right,var(--gold),rgba(184,151,58,0.2),var(--gold));}
+.step{padding:0 2rem;text-align:center;}
+.step-num{width:80px;height:80px;background:var(--navy-mid);border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;font-family:var(--font-serif);font-size:1.5rem;color:var(--gold);position:relative;z-index:1;transition:all .3s;}
+.step:hover .step-num{background:var(--gold);color:var(--navy);}
+.step-title{font-family:var(--font-serif);font-size:1.1rem;color:var(--white);margin-bottom:.75rem;}
+.step-text{font-size:.78rem;color:rgba(255,255,255,0.45);line-height:1.8;}
+.conseil-band{background:linear-gradient(135deg,var(--navy-mid),var(--navy));border-top:1px solid rgba(184,151,58,0.15);border-bottom:1px solid rgba(184,151,58,0.15);padding:4rem;}
+.conseil-inner{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:4rem;align-items:center;}
+#confidentiel{background:var(--cream);padding:0;display:grid;grid-template-columns:1fr 1fr;}
+.conf-visual{background:linear-gradient(135deg,rgba(15,30,45,0.88),rgba(15,30,45,0.7)),url('https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=900&q=80') center/cover;padding:7rem 5rem;display:flex;flex-direction:column;justify-content:center;}
+.conf-visual h2{color:var(--white);margin-bottom:1.5rem;}
+.conf-visual .section-intro{color:rgba(255,255,255,0.6);}
+.conf-points{margin-top:2.5rem;display:flex;flex-direction:column;gap:1rem;}
+.conf-point{display:flex;align-items:flex-start;gap:1rem;}
+.conf-point-icon{width:36px;height:36px;flex-shrink:0;background:rgba(184,151,58,0.2);border:1px solid rgba(184,151,58,0.4);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:.9rem;border-radius:2px;}
+.conf-point-text{font-size:.82rem;color:rgba(255,255,255,0.6);line-height:1.7;padding-top:6px;}
+.conf-expertise{background:var(--white);padding:7rem 5rem;display:flex;flex-direction:column;justify-content:center;}
+.expertise-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:2.5rem;}
+.expertise-card{padding:1.5rem;border:1px solid rgba(184,151,58,0.2);border-radius:2px;background:var(--cream);transition:all .3s;}
+.expertise-card:hover{border-color:var(--gold);box-shadow:0 4px 20px rgba(184,151,58,0.1);}
+.expertise-icon{font-size:1.5rem;margin-bottom:.8rem;}
+.expertise-label{font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.4rem;}
+.expertise-desc{font-size:.75rem;color:var(--gray);line-height:1.6;}
+#temoignages{background:var(--white);}
+.temo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:3.5rem;}
+.temo-card{padding:2.5rem;border:1px solid rgba(184,151,58,0.15);position:relative;background:var(--cream);border-radius:2px;}
+.temo-card::before{content:'"';position:absolute;top:1.2rem;left:1.8rem;font-family:var(--font-serif);font-size:4rem;color:rgba(184,151,58,0.2);line-height:1;}
+.temo-text{font-family:var(--font-serif);font-size:1rem;line-height:1.8;color:var(--navy);font-style:italic;margin-bottom:1.5rem;margin-top:1rem;}
+.temo-author{display:flex;gap:12px;align-items:center;}
+.temo-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--gold-pale),var(--gold));display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:1.1rem;color:var(--navy);font-weight:600;}
+.temo-name{font-size:.82rem;font-weight:600;color:var(--navy);}
+.temo-type{font-size:.72rem;color:var(--gray);}
+.temo-stars{color:var(--gold);font-size:.7rem;letter-spacing:2px;margin-bottom:3px;}
+#remuneration{background:var(--white);}
+.remun-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
+#cta-band{background:linear-gradient(135deg,var(--gold) 0%,var(--gold-light) 50%,var(--gold) 100%);padding:5rem 4rem;text-align:center;}
+#cta-band h2{font-family:var(--font-serif);font-size:2.5rem;color:var(--navy);margin-bottom:1rem;}
+#cta-band p{color:rgba(15,30,45,0.7);margin-bottom:2rem;font-size:1rem;}
+.btn-dark{background:var(--navy);color:var(--white);border:none;padding:16px 40px;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:600;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
+.btn-dark:hover{box-shadow:0 8px 30px rgba(15,30,45,0.3);transform:translateY(-2px);}
+footer{background:var(--navy);padding:5rem 4rem 2rem;}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4rem;margin-bottom:4rem;}
+.footer-logo{font-family:var(--font-serif);font-size:1.6rem;color:var(--white);letter-spacing:3px;margin-bottom:.4rem;}
+.footer-logo-sub{font-size:.6rem;color:var(--gold);letter-spacing:4px;text-transform:uppercase;margin-bottom:1.2rem;}
+.footer-desc{font-size:.78rem;color:rgba(255,255,255,0.4);line-height:1.8;max-width:280px;}
+.footer-title{font-size:.65rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:1.2rem;padding-bottom:.6rem;border-bottom:1px solid rgba(184,151,58,0.2);}
+.footer-links{list-style:none;display:flex;flex-direction:column;gap:.6rem;}
+.footer-links a{text-decoration:none;font-size:.78rem;color:rgba(255,255,255,0.45);transition:color .2s;cursor:pointer;}
+.footer-links a:hover{color:var(--gold);}
+.footer-contact-item{display:flex;gap:10px;margin-bottom:.8rem;}
+.footer-contact-icon{color:var(--gold);font-size:.8rem;margin-top:2px;}
+.footer-contact-text{font-size:.78rem;color:rgba(255,255,255,0.45);line-height:1.5;}
+.footer-bottom{border-top:1px solid rgba(184,151,58,0.15);padding-top:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
+.footer-copy{font-size:.7rem;color:rgba(255,255,255,0.3);}
+.footer-legal{display:flex;gap:1.5rem;}
+.footer-legal a{font-size:.68rem;color:rgba(255,255,255,0.3);text-decoration:none;cursor:pointer;}
+.carte-page{display:none;min-height:100vh;}
+.carte-page.active{display:block;}
+.carte-wrapper{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 72px);margin-top:72px;}
+.carte-sidebar{background:var(--white);overflow-y:auto;border-right:1px solid rgba(184,151,58,0.2);}
+.sidebar-header{background:var(--navy);padding:2rem 2rem 1.5rem;position:sticky;top:0;z-index:10;}.sidebar-body-top,.sidebar-body-rest{padding:1.5rem 2rem 0;}.sidebar-body-rest{padding-bottom:2rem;}
+.sidebar-header h3{font-family:var(--font-serif);color:var(--white);font-size:1.4rem;margin-bottom:.4rem;}
+.sidebar-header p{font-size:.75rem;color:rgba(255,255,255,0.5);line-height:1.6;}
+.sidebar-body{padding:0;}
+.form-section-title{font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:1rem;margin-top:1.5rem;padding-bottom:.5rem;border-bottom:1px solid rgba(184,151,58,0.2);}
+.form-group{margin-bottom:1.2rem;}
+.form-group label{display:block;font-size:.72rem;letter-spacing:1px;color:var(--gray);margin-bottom:.4rem;text-transform:uppercase;}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid #E0D9CE;background:var(--cream);border-radius:2px;font-family:var(--font-sans);font-size:.85rem;color:var(--navy);transition:border-color .25s;outline:none;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--gold);background:var(--white);}
+.form-group textarea{min-height:80px;resize:vertical;}
+.projects-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem;}
+.proj-chip{padding:8px 10px;border:1px solid #E0D9CE;border-radius:2px;cursor:pointer;background:var(--cream);font-size:.7rem;color:var(--gray);text-align:center;transition:all .2s;line-height:1.3;}
+.proj-chip:hover{border-color:var(--gold);color:var(--gold);}
+.proj-chip.selected{background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;}
+.proj-chip-icon{font-size:1rem;display:block;margin-bottom:3px;}
+.parcel-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--cream);border:1px solid rgba(184,151,58,0.3);border-radius:2px;margin-bottom:6px;}
+.parcel-ref{font-weight:600;color:var(--navy);font-size:.78rem;}
+.parcel-details{color:var(--gray);font-size:.7rem;}
+.parcel-remove{background:none;border:none;color:#D44;cursor:pointer;font-size:1rem;padding:2px 6px;}
+.parcels-empty{font-size:.78rem;color:var(--gray);font-style:italic;text-align:center;padding:1rem 0;}
+.map-instruction{background:rgba(184,151,58,0.08);border:1px solid rgba(184,151,58,0.25);border-radius:2px;padding:10px 12px;font-size:.75rem;color:var(--navy);line-height:1.5;margin-bottom:1rem;}
+.map-instruction strong{color:var(--gold);}
+.submit-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);border:none;padding:14px;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;cursor:pointer;border-radius:2px;margin-top:1.5rem;transition:all .3s;}
+.submit-btn:hover{box-shadow:0 6px 25px rgba(184,151,58,0.35);transform:translateY(-1px);}
+.map-outer{position:relative;flex:1;min-height:400px;}
+#map{position:absolute;inset:0;}
+.map-controls{position:absolute;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;}
+.map-layer-btn{background:var(--white);border:1px solid rgba(184,151,58,0.3);padding:8px 12px;font-size:.7rem;cursor:pointer;border-radius:2px;color:var(--navy);}
+.map-layer-btn.active{background:var(--gold);color:var(--navy);border-color:var(--gold);}
+.map-info-box{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(15,30,45,0.9);color:var(--white);padding:8px 20px;border-radius:2px;font-size:.75rem;border:1px solid rgba(184,151,58,0.3);z-index:500;pointer-events:none;white-space:nowrap;}
+.search-address-bar{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:500;display:flex;width:340px;box-shadow:0 4px 20px rgba(0,0,0,0.2);}
+.search-address-bar input{flex:1;padding:10px 14px;border:1px solid rgba(184,151,58,0.3);border-right:none;background:var(--white);font-family:var(--font-sans);font-size:.82rem;outline:none;border-radius:2px 0 0 2px;}
+.search-address-bar button{background:var(--gold);border:none;padding:10px 16px;cursor:pointer;color:var(--navy);font-size:.9rem;font-weight:700;border-radius:0 2px 2px 0;}
+.modal-overlay{position:fixed;inset:0;background:rgba(15,30,45,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(6px);}
+.modal-overlay.active{opacity:1;pointer-events:all;}
+.modal-box{background:var(--white);padding:3.5rem;max-width:480px;width:90%;border-radius:2px;border-top:4px solid var(--gold);text-align:center;transform:translateY(20px);transition:transform .3s;}
+.modal-overlay.active .modal-box{transform:translateY(0);}
+.modal-icon{font-size:3rem;margin-bottom:1.2rem;}
+.modal-title{font-family:var(--font-serif);font-size:1.8rem;color:var(--navy);margin-bottom:.8rem;}
+.modal-text{font-size:.85rem;color:var(--gray);line-height:1.8;margin-bottom:2rem;}
+.modal-close{background:var(--navy);color:var(--white);border:none;padding:12px 28px;cursor:pointer;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;border-radius:2px;}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(8px);}}
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease;}
+.reveal.visible{opacity:1;transform:none;}
+@media(max-width:1024px){nav{padding:0 2rem;}.nav-links{display:none;}.hamburger{display:flex;}section{padding:5rem 2rem;}#promesse{grid-template-columns:1fr;}.promesse-divider{display:none;}.steps{grid-template-columns:1fr 1fr;}.steps::before{display:none;}#confidentiel{grid-template-columns:1fr;}.footer-grid{grid-template-columns:1fr 1fr;}.temo-grid{grid-template-columns:1fr;}.remun-grid{grid-template-columns:1fr;gap:2.5rem;}.carte-wrapper{display:flex;flex-direction:column;height:auto;}.carte-sidebar{display:flex;flex-direction:column;}.sidebar-header{order:0;}.sidebar-body-top{order:1;}.map-outer{order:2;height:70vw;min-height:320px;position:relative;}.sidebar-body-rest{order:3;}#map,#rMap{position:absolute;inset:0;}.hero-stats{display:none;}.hero-content{padding:0 2rem;padding-top:72px;}.conseil-inner{grid-template-columns:1fr;}.conseil-inner>div:last-child{display:none;}}
+@media(max-width:600px){.steps{grid-template-columns:1fr;}.footer-grid{grid-template-columns:1fr;}.expertise-grid{grid-template-columns:1fr;}h1{font-size:2.2rem;}.search-address-bar{width:calc(100% - 32px);left:16px;transform:none;}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="javascript:void(0)" class="nav-logo" onclick="showMain()">
+    <div class="nav-logo-icon">FS</div>
+    <div class="nav-logo-text"><div class="nav-logo-name">FONCIER STRATÉGIE</div><div class="nav-logo-sub">Conseil & Valorisation</div></div>
+  </a>
+  <ul class="nav-links">
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('typologies')">Valorisations</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('processus')">Notre approche</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('confidentiel')">Expertise</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('remuneration')">Honoraires</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('temoignages')">Références</a></li>
+    <li><a href="javascript:void(0)" style="border:1px solid rgba(184,151,58,0.4);padding:8px 16px;border-radius:2px;" onclick="showRecherche();return false;">Je recherche un bien</a></li>
+    <li><a href="javascript:void(0)" class="nav-cta" onclick="showCarte();return false;">Déposer mon bien</a></li>
+  </ul>
+  <div class="hamburger" id="hamburger" onclick="toggleDrawer()"><span></span><span></span><span></span></div>
+</nav>
+<div class="nav-drawer" id="navDrawer">
+  <ul>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('typologies');toggleDrawer()">Valorisations</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('processus');toggleDrawer()">Notre approche</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('confidentiel');toggleDrawer()">Expertise</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('remuneration');toggleDrawer()">Honoraires</a></li>
+    <li><a href="javascript:void(0)" onclick="showMainAndScroll('temoignages');toggleDrawer()">Références</a></li>
+    <li><a href="javascript:void(0)" onclick="showRecherche();toggleDrawer();return false;" style="color:rgba(184,151,58,0.75)">Je recherche un bien</a></li>
+    <li><a href="javascript:void(0)" onclick="showCarte();toggleDrawer();return false;" style="color:var(--gold)">Déposer mon bien →</a></li>
+  </ul>
+</div>
+
+<div id="mainSite">
+<section id="hero">
+  <div class="hero-bg"></div><div class="hero-decorline"></div>
+  <div class="hero-content">
+    <div class="hero-badge"><span>Conseil en valorisation foncière</span></div>
+    <h1>Votre foncier recèle<br>une <em>valeur insoupçonnée</em></h1>
+    <p class="hero-sub">Terrains agricoles, forêts, friches industrielles, domaines… Chaque foncier recèle un potentiel que seul un regard d'expert sait révéler. Nous sommes ce regard.</p>
+    <div class="hero-actions">
+      <a href="javascript:void(0)" class="btn-primary" onclick="showCarte();return false;">Déposer mon bien</a>
+      <a href="javascript:void(0)" class="btn-ghost" onclick="showMainAndScroll('processus')">Notre approche</a>
+    </div>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="hero-stat-num">20+</div><div class="hero-stat-label">Types de projets</div></div>
+    <div class="hero-stat"><div class="hero-stat-num">100%</div><div class="hero-stat-label">Confidentialité</div></div>
+    <div class="hero-stat"><div class="hero-stat-num">15+</div><div class="hero-stat-label">Années d'expertise</div></div>
+  </div>
+  <div class="hero-scroll">Découvrir</div>
+</section>
+
+<div id="promesse">
+  <div class="promesse-item reveal"><div class="promesse-icon">🔒</div><div class="promesse-title">Confidentialité absolue</div><div class="promesse-text">Votre parcelle n'apparaît sur aucune plateforme. Seuls les acquéreurs pré-qualifiés liés par accord de confidentialité sont informés — sauf si vous le souhaitez pour maximiser vos chances.</div></div>
+  <div class="promesse-divider"></div>
+  <div class="promesse-item reveal"><div class="promesse-icon">⚖️</div><div class="promesse-title">Expertise juridique & notariée</div><div class="promesse-text">Nos experts maîtrisent les spécificités du droit foncier, rural et de l'urbanisme. Chaque dossier est structuré pour être solide, équilibré et sans mauvaise surprise.</div></div>
+  <div class="promesse-divider"></div>
+  <div class="promesse-item reveal"><div class="promesse-icon">🎯</div><div class="promesse-title">Mise en relation ciblée</div><div class="promesse-text">Nous activons un réseau d'entreprises, d'investisseurs et d'opérateurs spécialisés constitué au fil de 15 ans de transactions. Pas d'appels d'offres publics.</div></div>
+</div>
+
+<section id="typologies">
+  <div class="typo-header reveal">
+    <div><div class="section-label"><span>Ce que nous valorisons</span></div><h2>Chaque terrain<br>mérite son <em>projet idéal</em></h2></div>
+    <p class="section-intro" style="max-width:360px">Du projet solaire à la promotion immobilière, de la forêt au data center, nous explorons toutes les pistes.</p>
+  </div>
+  <div class="typo-grid reveal">
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#D4A017,#8B5E0A)"><div class="typo-card-icon">☀️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Énergie renouvelable</div><div class="typo-card-title">Projet solaire &<br>agrivoltaïque</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#4A90D9,#1A4A7A)"><div class="typo-card-icon">🌬️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Énergie renouvelable</div><div class="typo-card-title">Projet éolien</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#6B7B8D,#2C3E50)"><div class="typo-card-icon">🏗️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Immobilier</div><div class="typo-card-title">Promotion immobilière</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#5D6D7E,#1C2833)"><div class="typo-card-icon">🏭</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Industrie</div><div class="typo-card-title">Projet industriel & entrepôt</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#5D8A3C,#2D5A1B)"><div class="typo-card-icon">🌾</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Agriculture</div><div class="typo-card-title">Terres agricoles & forêts</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#1A2980,#26D0CE)"><div class="typo-card-icon">🖥️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Technologie</div><div class="typo-card-title">Data center & batteries</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#8B5E3C,#4A2C0A)"><div class="typo-card-icon">🏰</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Tourisme</div><div class="typo-card-title">Domaine & projet touristique</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#2E7D32,#1B5E20)"><div class="typo-card-icon">🌿</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Environnement</div><div class="typo-card-title">Compensations & friches</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#795548,#3E2723)"><div class="typo-card-icon">⛏️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Ressources naturelles</div><div class="typo-card-title">Carrière, sablière & remblais</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#33691E,#1B5E20)"><div class="typo-card-icon">🦌</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Chasse & nature</div><div class="typo-card-title">Territoire de chasse & étang</div></div></div>
+    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#0D47A1,#1565C0)"><div class="typo-card-icon">📡</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Télécommunications</div><div class="typo-card-title">Bail antenne téléphonique</div></div></div>
+    <div class="typo-card" onclick="showCarte()" style="background:#0F1E2D"><div class="typo-card-img" style="background:linear-gradient(145deg,#0F1E2D,#243E57)"><div class="typo-card-icon">💡</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Et bien plus encore…</div><div class="typo-card-title">Votre projet<br>n'est pas listé ?</div></div></div>
+  </div>
+</section>
+
+<section id="processus">
+  <div class="reveal" style="text-align:center;max-width:700px;margin:0 auto">
+    <div class="section-label" style="justify-content:center"><span>Notre méthode</span></div>
+    <h2 style="color:var(--white)">Un accompagnement<br><em>de A à Z</em></h2>
+    <p class="section-intro" style="margin:1.2rem auto 0;text-align:center;color:rgba(255,255,255,0.5)">Ni agence, ni chasseur généraliste. Notre méthode est structurée et entièrement pilotée par nos équipes.</p>
+  </div>
+  <div class="steps reveal">
+    <div class="step"><div class="step-num">01</div><div class="step-title">Analyse & diagnostic</div><div class="step-text">Étude de votre foncier : localisation, PLU, servitudes, potentiel réglementaire et identification des projets envisageables.</div></div>
+    <div class="step"><div class="step-num">02</div><div class="step-title">Dossier de présentation</div><div class="step-text">Avec votre accord, nous constituons un dossier confidentiel pour le soumettre à des acquéreurs ciblés.</div></div>
+    <div class="step"><div class="step-num">03</div><div class="step-title">Mise en relation sélective</div><div class="step-text">Sélection rigoureuse parmi notre réseau. Seuls les profils les plus pertinents vous sont présentés.</div></div>
+    <div class="step"><div class="step-num">04</div><div class="step-title">Transaction sécurisée</div><div class="step-text">Accompagnement juridique et notarial jusqu'à la promesse de vente ou de bail.</div></div>
+  </div>
+</section>
+
+<div class="conseil-band">
+  <div class="conseil-inner reveal">
+    <div>
+      <div style="font-size:.62rem;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:1.2rem;font-weight:600">Conseil & Estimation</div>
+      <h2 style="color:var(--white)">Quelle valeur a vraiment<br><em>votre bien aujourd'hui ?</em></h2>
+      <p class="section-intro" style="color:rgba(255,255,255,0.55);margin-top:1.2rem">La valeur d'un terrain varie considérablement selon <strong style="color:rgba(255,255,255,0.8)">l'opportunité qui se présente</strong>. Un même terrain peut valoir trois fois plus pour un développeur solaire que pour un promoteur immobilier. <strong style="color:rgba(255,255,255,0.8)">C'est notre métier que de vous l'expliquer.</strong></p>
+    </div>
+    <div style="text-align:center;min-width:200px">
+      <div style="width:120px;height:120px;margin:0 auto 1.2rem;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.35);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:3rem">💡</div>
+      <div style="font-family:var(--font-serif);font-size:1rem;color:var(--white);margin-bottom:.5rem">Consultation gratuite</div>
+      <div style="font-size:.72rem;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:1.2rem">Premier avis éclairé, sans engagement.</div>
+      <a href="javascript:void(0)" onclick="showCarte()" style="display:inline-block;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);padding:11px 22px;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;border-radius:2px;text-decoration:none">Nous consulter →</a>
+    </div>
+  </div>
+</div>
+
+<section id="confidentiel" style="padding:0">
+  <div class="conf-visual reveal">
+    <div class="section-label"><span>Notre engagement</span></div>
+    <h2>La discrétion comme<br><em>principe fondateur</em></h2>
+    <p class="section-intro">Dans le foncier, la discrétion n'est pas un service optionnel. Révéler trop tôt l'existence d'un bien peut en réduire la valeur.</p>
+    <div class="conf-points">
+      <div class="conf-point"><div class="conf-point-icon">🗺</div><p class="conf-point-text">Votre bien n'entre jamais dans une base de données commerciale — sauf si vous le souhaitez pour maximiser vos chances.</p></div>
+      <div class="conf-point"><div class="conf-point-icon">🤝</div><p class="conf-point-text">Présentation uniquement à des acquéreurs pré-qualifiés engagés par accord de confidentialité.</p></div>
+      <div class="conf-point"><div class="conf-point-icon">📋</div><p class="conf-point-text">Dossier de présentation établi avec votre accord et revu avant toute diffusion dans notre réseau.</p></div>
+      <div class="conf-point"><div class="conf-point-icon">⚖️</div><p class="conf-point-text">Un notaire partenaire intervient dès la phase de négociation pour sécuriser les termes avant toute signature.</p></div>
+    </div>
+  </div>
+  <div class="conf-expertise reveal">
+    <div class="section-label"><span>Notre expertise</span></div>
+    <h2>Une équipe de<br><em>spécialistes</em> reconnus</h2>
+    <p class="section-intro">Chaque dossier est traité par le spécialiste compétent — jamais un généraliste seul face à un sujet complexe.</p>
+    <div class="expertise-grid">
+      <div class="expertise-card"><div class="expertise-icon">☀️</div><div class="expertise-label">Énergies renouvelables</div><div class="expertise-desc">Photovoltaïque, agrivoltaïque, éolien : maîtrise des réglementations et des acteurs.</div></div>
+      <div class="expertise-card"><div class="expertise-icon">🏗️</div><div class="expertise-label">Promotion & Industrie</div><div class="expertise-desc">Évaluation du potentiel constructible, contact avec promoteurs et industriels.</div></div>
+      <div class="expertise-card"><div class="expertise-icon">🌿</div><div class="expertise-label">Environnement & Agriculture</div><div class="expertise-desc">Compensations écologiques, forêts, terres agricoles, terrains dégradés.</div></div>
+      <div class="expertise-card"><div class="expertise-icon">⚖️</div><div class="expertise-label">Droit foncier & Notariat</div><div class="expertise-desc">Accompagnement juridique de la négociation à la signature de l'acte authentique.</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="temoignages">
+  <div class="reveal" style="text-align:center;max-width:600px;margin:0 auto 3.5rem">
+    <div class="section-label" style="justify-content:center"><span>Ils nous ont fait confiance</span></div>
+    <h2>Des propriétaires<br><em>satisfaits</em> témoignent</h2>
+  </div>
+  <div class="temo-grid reveal">
+    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">Foncier Stratégie a identifié un potentiel solaire sur mes terres agricoles que je n'aurais jamais imaginé. Tout s'est fait dans une discrétion totale, et j'ai signé un bail de 30 ans très avantageux.</p><div class="temo-author"><div class="temo-avatar">JM</div><div><div class="temo-name">Jean-Marc T.</div><div class="temo-type">Agriculteur — Charente, 85 ha</div></div></div></div>
+    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">J'héritais d'une friche industrielle que je ne savais pas comment valoriser. L'équipe m'a expliqué les prérequis, trouvé un promoteur sérieux et accompagné jusqu'à la promesse de vente.</p><div class="temo-author"><div class="temo-avatar">SB</div><div><div class="temo-name">Sophie B.</div><div class="temo-type">Propriétaire privée — Oise, 4 ha</div></div></div></div>
+    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">Notre commune disposait d'une carrière désaffectée. Foncier Stratégie a su trouver un opérateur pour un projet de data center. Un dossier complexe géré avec une vraie expertise juridique.</p><div class="temo-author"><div class="temo-avatar">MC</div><div><div class="temo-name">Michel C.</div><div class="temo-type">Maire — Communauté de communes, 12 ha</div></div></div></div>
+  </div>
+</section>
+
+<section id="remuneration">
+  <div class="remun-grid reveal">
+    <div>
+      <div class="section-label"><span>Notre rémunération</span></div>
+      <h2>Honoraires<br>au <em>succès uniquement</em></h2>
+      <p class="section-intro">Nous ne percevons aucun honoraire tant que votre bien n'est pas valorisé.</p>
+      <div style="margin-top:2.5rem;display:flex;flex-direction:column;gap:1.2rem">
+        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">🎯</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Zéro frais avant la transaction</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Aucun abonnement, aucun frais de dossier, aucune avance.</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">📈</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Indexé sur la valeur créée</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Honoraires calculés en pourcentage du prix de vente ou de la valeur capitalisée du bail.</div></div></div>
+        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">🤝</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Intérêts parfaitement alignés</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Nous n'avons aucun intérêt à précipiter une vente ou accepter un acquéreur sous-qualifié.</div></div></div>
+      </div>
+    </div>
+    <div>
+      <div style="background:var(--navy);border-radius:2px;padding:3rem;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(184,151,58,0.06);pointer-events:none"></div>
+        <div style="font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:1.5rem">Le principe en clair</div>
+        <p style="font-family:var(--font-serif);font-size:1.6rem;color:var(--white);line-height:1.3;margin-bottom:1.8rem">Si nous ne créons pas de valeur pour vous,<br><em style="color:var(--gold-light)">nous ne sommes pas rémunérés.</em></p>
+        <div style="border-top:1px solid rgba(184,151,58,0.2);padding-top:1.5rem">
+          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Frais d'entrée</span><span style="font-family:var(--font-serif);color:var(--gold)">0 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Frais de dossier</span><span style="font-family:var(--font-serif);color:var(--gold)">0 €</span></div>
+          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Honoraires</span><span style="font-family:var(--font-serif);color:var(--gold)">Au succès uniquement</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:1rem"><span style="font-size:.75rem;color:rgba(255,255,255,0.7);font-weight:600">Votre risque financier</span><span style="font-family:var(--font-serif);font-size:1.3rem;color:var(--white);font-weight:600">Nul</span></div>
+        </div>
+        <div style="margin-top:1.5rem;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.25);border-radius:2px;padding:1rem 1.2rem;font-size:.75rem;color:rgba(255,255,255,0.55);line-height:1.7">Le taux d'honoraires est défini contractuellement avant toute démarche, en toute transparence.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="cta-band">
+  <h2>Votre terrain vaut plus<br>que vous ne le pensez</h2>
+  <p>Entrez dans notre base de données et laissez-nous penser à vous au bon moment.</p>
+  <a href="javascript:void(0)" class="btn-dark" onclick="showCarte();return false;">Déposer mon bien gratuitement</a>
+</div>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-logo">FONCIER STRATÉGIE</div>
+      <div class="footer-logo-sub">Conseil & Valorisation</div>
+      <p class="footer-desc">Cabinet indépendant spécialisé dans la valorisation foncière, intervenant sur toute la France pour propriétaires privés, agriculteurs, sociétés et collectivités.</p>
+    </div>
+    <div>
+      <div class="footer-title">Valorisations</div>
+      <ul class="footer-links">
+        <li><a onclick="showCarte()">Projet solaire & agrivoltaïque</a></li>
+        <li><a onclick="showCarte()">Projet éolien</a></li>
+        <li><a onclick="showCarte()">Promotion immobilière</a></li>
+        <li><a onclick="showCarte()">Projet industriel</a></li>
+        <li><a onclick="showCarte()">Data center & batteries</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-title">Cessions</div>
+      <ul class="footer-links">
+        <li><a onclick="showCarte()">Terrain constructible</a></li>
+        <li><a onclick="showCarte()">Forêt</a></li>
+        <li><a onclick="showCarte()">Domaine de chasse</a></li>
+        <li><a onclick="showCarte()">Étang & friche</a></li>
+        <li><a onclick="showCarte()">Entrepôt</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="footer-title">Contact</div>
+      <div class="footer-contact-item"><span class="footer-contact-icon">📍</span><span class="footer-contact-text">Paris – Lyon – Bordeaux<br>Interventions sur toute la France</span></div>
+      <div class="footer-contact-item"><span class="footer-contact-icon">📞</span><span class="footer-contact-text">01 XX XX XX XX</span></div>
+      <div class="footer-contact-item"><span class="footer-contact-icon">✉️</span><span class="footer-contact-text"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="61020e0f1500021521070e0f020804134c1215130015040608044f0713">[email&#160;protected]</a></span></div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span class="footer-copy">© 2025 Foncier Stratégie. Tous droits réservés.</span>
+    <div class="footer-legal"><a href="javascript:void(0)">Mentions légales</a><a href="javascript:void(0)">Confidentialité</a><a href="javascript:void(0)">CGU</a></div>
+  </div>
+</footer>
+</div>
+
+<!-- CARTE PAGE -->
+<div id="cartePage" class="carte-page">
+  <div class="carte-wrapper">
+    <div class="carte-sidebar">
+      <div class="sidebar-header"><h3>Déposer mon bien</h3><p>Sélectionnez vos parcelles sur la carte, précisez votre projet et laissez-nous vos coordonnées.</p></div>
+      <div class="sidebar-body-top sidebar-body">
+        <div class="form-section-title">1 — Localisation par adresse</div>
+        <div class="map-instruction"><strong>Comment ça marche :</strong> Recherchez une adresse ou zoomez sur la carte → cliquez sur votre parcelle pour la sélectionner (couche cadastrale activée).</div>
+        </div><!-- end sidebar-body-top -->
+        <div class="sidebar-body-rest sidebar-body">
+        <div class="form-section-title">2 — Parcelles sélectionnées</div>
+        <div id="parcelsList"><p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p></div>
+        <div class="form-section-title">3 — Type de projet</div>
+        <p style="font-size:.72rem;color:var(--gray);margin-bottom:.75rem">Sélectionnez un ou plusieurs types :</p>
+        <div class="projects-grid">
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="solaire"><span class="proj-chip-icon">☀️</span>Projet solaire</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="agrivoltaique"><span class="proj-chip-icon">🌾</span>Agrivoltaïque</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="eolien"><span class="proj-chip-icon">🌬️</span>Projet éolien</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="industriel"><span class="proj-chip-icon">🏭</span>Projet industriel</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="immobilier"><span class="proj-chip-icon">🏗️</span>Promotion immo.</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="touristique"><span class="proj-chip-icon">🏰</span>Tourisme</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="carriere"><span class="proj-chip-icon">⛏️</span>Carrière</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="remblais"><span class="proj-chip-icon">🚛</span>Remblais</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="batteries"><span class="proj-chip-icon">🔋</span>Batteries</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="datacenter"><span class="proj-chip-icon">🖥️</span>Data center</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="friche"><span class="proj-chip-icon">🌿</span>Friche</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="compensation"><span class="proj-chip-icon">🌳</span>Compensation enviro.</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="terres"><span class="proj-chip-icon">🌾</span>Terres agricoles</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="foret"><span class="proj-chip-icon">🌲</span>Forêt</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="constructible"><span class="proj-chip-icon">📐</span>Constructible</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="entrepot"><span class="proj-chip-icon">🏢</span>Entrepôt</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="chasse"><span class="proj-chip-icon">🦌</span>Chasse</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="etang"><span class="proj-chip-icon">🦆</span>Étang</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="antenne"><span class="proj-chip-icon">📡</span>Antenne</div>
+          <div class="proj-chip" onclick="toggleProject(this)" data-value="autre" style="grid-column:span 2"><span class="proj-chip-icon">💡</span>Autre / idée de projet</div>
+        </div>
+        <div class="form-section-title">4 — Informations</div>
+        <div class="form-group"><label>Surface (ha)</label><input type="number" id="surface" placeholder="ex : 12.5" min="0" step="0.1"></div>
+        <div class="form-group"><label>Description</label><textarea id="description" placeholder="Nature, accès, situation, particularités…"></textarea></div>
+        <div class="form-section-title">5 — Vos coordonnées</div>
+        <div class="form-group"><label>Nom *</label><input type="text" id="nom" placeholder="Votre nom"></div>
+        <div class="form-group"><label>Prénom *</label><input type="text" id="prenom" placeholder="Votre prénom"></div>
+        <div class="form-group"><label>Téléphone *</label><input type="tel" id="tel" placeholder="06 XX XX XX XX"></div>
+        <div class="form-group"><label>Email *</label><input type="email" id="email" placeholder="votre@email.fr"></div>
+        <div class="form-group"><label>Qualité</label><select id="qualite"><option value="">— Votre qualité —</option><option>Propriétaire privé</option><option>Indivision / héritiers</option><option>SCI / Société</option><option>Collectivité / Commune</option><option>Agriculteur / Exploitant</option><option>Autre</option></select></div>
+        <div style="background:rgba(184,151,58,0.06);border:1px solid rgba(184,151,58,0.2);border-radius:2px;padding:12px;margin-top:1.5rem;font-size:.72rem;color:var(--gray);line-height:1.6">🔒 <strong style="color:var(--navy)">Confidentialité garantie.</strong> Vos informations sont transmises exclusivement à notre équipe.</div>
+        <button class="submit-btn" onclick="submitForm()">Envoyer ma demande →</button>
+        <p style="font-size:.68rem;color:var(--gray);text-align:center;margin-top:1rem;line-height:1.6">Un conseiller vous contactera sous 48h ouvrées.</p>
+      </div><!-- end sidebar-body-rest -->
+    </div>
+    <div class="map-outer">
+      <div class="search-address-bar"><input type="text" id="addressSearch" placeholder="Rechercher une adresse, commune…" onkeypress="if(event.key==='Enter')searchAddress()"><button onclick="searchAddress()">🔍</button></div>
+      <div id="map"></div>
+      <div id="mapFallback" style="display:none;position:absolute;inset:0;background:var(--navy);align-items:center;justify-content:center;flex-direction:column;gap:1rem;z-index:10"><div style="font-size:2rem">🗺️</div><div style="color:var(--white);font-family:var(--font-serif)">Carte non disponible</div><div style="color:rgba(255,255,255,0.5);font-size:.78rem;text-align:center;max-width:280px;line-height:1.7">Précisez votre commune et référence cadastrale dans la description.</div></div>
+      <div class="map-controls">
+        <button class="map-layer-btn active" id="btnCadastreOn" onclick="toggleCadastre(true)">Cadastre ON</button>
+      </div>
+      <div id="parcelsBadge" style="display:none;position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:#D4AF57;color:#0F1E2D;padding:9px 22px;border-radius:3px;font-size:.78rem;font-weight:700;letter-spacing:1px;z-index:500;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid #0F1E2D;align-items:center;gap:8px;white-space:nowrap;"></div>
+      <div class="map-info-box" id="mapInfoBox">Zoomez et cliquez sur une parcelle pour la sélectionner</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal-box">
+    <div class="modal-icon">✅</div>
+    <div class="modal-title">Demande envoyée</div>
+    <p class="modal-text">Un expert Foncier Stratégie vous contactera sous <strong>48h ouvrées</strong>. La confidentialité de votre dossier est notre priorité absolue.</p>
+    <button class="modal-close" onclick="closeModal()">Retour à l'accueil</button>
+  </div>
+</div>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+const SUPABASE_URL = 'https://hzwmnxsxgoajlqmfvyip.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY2MDI0NTcsImV4cCI6MjA2MjE3ODQ1N30.placeholder';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const mainSite = document.getElementById('mainSite');
+const cartePage = document.getElementById('cartePage');
+let mapInitialized = false;
+
+function showMain(){mainSite.style.display='block';cartePage.classList.remove('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);}
+function showCarte(){mainSite.style.display='none';cartePage.classList.add('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);if(!mapInitialized){loadMapLibre(()=>{setTimeout(()=>{initMap();mapInitialized=true;},150);});}else{setTimeout(()=>{if(map)map.resize();},200);}return false;}
+function showMainAndScroll(id){showMain();setTimeout(()=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});},100);return false;}
+function toggleDrawer(){document.getElementById('navDrawer').classList.toggle('open');}
+
+try{const o=new IntersectionObserver(e=>e.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>o.observe(el));}catch(e){document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));}
+
+const selectedProjects=new Set();
+function toggleProject(el){const v=el.dataset.value;if(selectedProjects.has(v)){selectedProjects.delete(v);el.classList.remove('selected');}else{selectedProjects.add(v);el.classList.add('selected');}}
+
+function loadMapLibre(cb){
+  if(window.maplibregl){cb();return;}
+  if(!document.getElementById('ml-css')){const l=document.createElement('link');l.id='ml-css';l.rel='stylesheet';l.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';document.head.appendChild(l);}
+  const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+  s.onload=()=>{if(window.maplibregl)cb();else document.getElementById('mapFallback').style.display='flex';};
+  s.onerror=()=>{document.getElementById('mapFallback').style.display='flex';};
+  document.head.appendChild(s);
+}
+
+const CADASTRE_TILES='https://openmaptiles.geo.data.gouv.fr/data/cadastre.json';
+const SAT_TILES='https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
+
+function makeMapStyle(){return{version:8,glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',sources:{satellite:{type:'raster',tiles:[SAT_TILES],tileSize:256,attribution:'© IGN',maxzoom:21},cadastre:{type:'vector',url:CADASTRE_TILES},'sel':{type:'geojson',data:{type:'FeatureCollection',features:[]}}},layers:[{id:'satellite',type:'raster',source:'satellite'},{id:'parc-fill',type:'fill',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'fill-color':'transparent','fill-opacity':0.01}},{id:'parc-line',type:'line',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'line-color':'#FF6B00','line-width':1}},{id:'sel-fill',type:'fill',source:'sel',paint:{'fill-color':'#D4AF57','fill-opacity':0.55}},{id:'sel-line',type:'line',source:'sel',paint:{'line-color':'#0F1E2D','line-width':2.5}}]};}
+
+function getBounds(geom){const b=new maplibregl.LngLatBounds();function add(c){if(typeof c[0]==='number')b.extend(c);else c.forEach(add);}add(geom.coordinates);return b;}
+
+let map,selectedParcels=[],selGeoJSON={type:'FeatureCollection',features:[]};
+function initMap(){
+  if(!window.maplibregl){document.getElementById('mapFallback').style.display='flex';return;}
+  try{
+    map=new maplibregl.Map({container:'map',style:makeMapStyle(),center:[2.5,46.5],zoom:6});
+    map.addControl(new maplibregl.NavigationControl(),'top-right');
+    map.on('mouseenter','parc-fill',()=>{map.getCanvas().style.cursor='pointer';});
+    map.on('mouseleave','parc-fill',()=>{map.getCanvas().style.cursor='';});
+    map.on('click',onMapClick);
+    map.on('zoom',updateMapHint);
+    map.on('load',updateMapHint);
+  }catch(e){console.error(e);document.getElementById('mapFallback').style.display='flex';}
+}
+function updateMapHint(){if(!map)return;const z=map.getZoom(),box=document.getElementById('mapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre commune pour voir les parcelles';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez sur la vôtre';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
+function toggleCadastre(on){if(!map)return;document.getElementById('btnCadastreOn').classList.toggle('active',on);document.getElementById('btnCadastreOff').classList.toggle('active',!on);const v=on?'visible':'none';['parc-fill','parc-line'].forEach(l=>{if(map.getLayer(l))map.setLayoutProperty(l,'visibility',v);});}
+function onMapClick(e){
+  const z=map.getZoom();
+  if(z<13){showMapInfo('🔍 Zoomez davantage pour identifier une parcelle');return;}
+  const features=map.queryRenderedFeatures(e.point,{layers:['parc-fill']});
+  if(features.length>0){
+    const f=features[0],p=f.properties;
+    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
+    if(selectedParcels.find(x=>x.id===id)){showMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
+    selGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
+    if(map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);
+    try{map.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
+    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
+    selectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
+    renderParcels();showMapInfo('✅ Parcelle sélectionnée — '+surface);
+  }else{
+    showMapInfo('⚠️ Zoomez davantage (zoom ≥ 15) et cliquez sur une parcelle orange');
+  }
+}
+function removeParcel(id){selectedParcels=selectedParcels.filter(x=>x.id!==id);selGeoJSON.features=selGeoJSON.features.filter(f=>f.properties.id!==id);if(map&&map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);renderParcels();}
+function renderParcels(){const l=document.getElementById('parcelsList');const badge=document.getElementById('parcelsBadge');if(!selectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p>';if(badge)badge.style.display='none';return;}if(badge){badge.style.display='flex';badge.textContent='📌 '+selectedParcels.length+' parcelle'+(selectedParcels.length>1?'s':'')+' sélectionnée'+(selectedParcels.length>1?'s':'');}l.innerHTML=selectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeParcel('${p.id}')">✕</button></div>`).join('');}
+function showMapInfo(msg){document.getElementById('mapInfoBox').textContent=msg;setTimeout(()=>{if(map)document.getElementById('mapInfoBox').textContent=map.getZoom()<14?'🔍 Zoomez davantage (≥ 14)':'✅ Cliquez sur une parcelle';},3500);}
+async function searchAddress(){const q=document.getElementById('addressSearch').value.trim();if(!q||!map)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;map.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(map).togglePopup();}}catch(e){}}
+async function submitForm(){
+  const n=document.getElementById('nom').value.trim(),p=document.getElementById('prenom').value.trim(),t=document.getElementById('tel').value.trim(),e=document.getElementById('email').value.trim();
+  if(!n||!p||!t||!e){alert('Veuillez remplir les champs obligatoires.');return;}
+  if(!selectedProjects.size){alert('Veuillez sélectionner au moins un type de projet.');return;}
+  try {
+    const {error} = await db.from('depositions').insert({
+      nom:n, prenom:p, tel:t, email:e,
+      qualite:document.getElementById('qualite').value,
+      surface:parseFloat(document.getElementById('surface').value)||null,
+      description:document.getElementById('description').value,
+      projets:[...selectedProjects].join(', '),
+      parcelles:JSON.stringify(selectedParcels)
+    });
+    if(error){alert('Erreur : '+error.message);return;}
+  } catch(err){alert('Erreur connexion : '+err.message);return;}
+  document.getElementById('successModal').classList.add('active');
+}
+function closeModal(){document.getElementById('successModal').classList.remove('active');showMain();}
+</script>
+
+<!-- RECHERCHE PAGE -->
+<div id="recherchePage" style="display:none;min-height:100vh;">
+  <div class="carte-wrapper">
+    <div class="carte-sidebar">
+      <div class="sidebar-header" style="background:linear-gradient(135deg,var(--navy-mid),var(--navy))">
+        <h3>Je recherche un bien</h3>
+        <p>Sélectionnez vos parcelles sur la carte, précisez vos critères et laissez-nous vos coordonnées.</p>
+      </div>
+      <div class="sidebar-body-top sidebar-body">
+        <div class="form-section-title">1 — Localisation par adresse</div>
+        <div class="map-instruction"><strong>Comment ça marche :</strong> Recherchez une adresse ou zoomez sur la carte → cliquez sur la zone qui vous intéresse (couche cadastrale activée).</div>
+        </div><!-- end sidebar-body-top -->
+        <div class="sidebar-body-rest sidebar-body">
+        <div class="form-section-title">2 — Parcelles / zones d'intérêt</div>
+        <div id="rParcelsList"><p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p></div>
+        <div class="form-section-title">3 — Type de bien recherché</div>
+        <p style="font-size:.72rem;color:var(--gray);margin-bottom:.75rem">Sélectionnez un ou plusieurs types :</p>
+        <div class="projects-grid">
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="solaire"><span class="proj-chip-icon">☀️</span>Projet solaire</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="agrivoltaique"><span class="proj-chip-icon">🌾</span>Agrivoltaïque</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="eolien"><span class="proj-chip-icon">🌬️</span>Projet éolien</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="industriel"><span class="proj-chip-icon">🏭</span>Projet industriel</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="immobilier"><span class="proj-chip-icon">🏗️</span>Promotion immo.</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="touristique"><span class="proj-chip-icon">🏰</span>Tourisme</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="carriere"><span class="proj-chip-icon">⛏️</span>Carrière</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="remblais"><span class="proj-chip-icon">🚛</span>Remblais</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="batteries"><span class="proj-chip-icon">🔋</span>Batteries</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="datacenter"><span class="proj-chip-icon">🖥️</span>Data center</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="friche"><span class="proj-chip-icon">🌿</span>Friche</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="compensation"><span class="proj-chip-icon">🌳</span>Compensation enviro.</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="terres"><span class="proj-chip-icon">🌾</span>Terres agricoles</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="foret"><span class="proj-chip-icon">🌲</span>Forêt</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="constructible"><span class="proj-chip-icon">📐</span>Constructible</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="entrepot"><span class="proj-chip-icon">🏢</span>Entrepôt</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="chasse"><span class="proj-chip-icon">🦌</span>Chasse</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="etang"><span class="proj-chip-icon">🦆</span>Étang</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="antenne"><span class="proj-chip-icon">📡</span>Antenne</div>
+          <div class="proj-chip" onclick="toggleRProject(this)" data-value="autre" style="grid-column:span 2"><span class="proj-chip-icon">💡</span>Autre / bien non listé</div>
+        </div>
+        <div class="form-section-title">4 — Critères</div>
+        <div class="form-group"><label>Surface minimale (ha)</label><input type="number" id="r_surface" placeholder="ex : 5" min="0" step="0.5"></div>
+        <div class="form-group"><label>Précisions</label><textarea id="r_description" placeholder="Zone géographique, accès, PLU souhaité, configuration, contraintes…"></textarea></div>
+        <div class="form-section-title">5 — Vos coordonnées</div>
+        <div class="form-group"><label>Nom *</label><input type="text" id="r_nom" placeholder="Votre nom"></div>
+        <div class="form-group"><label>Prénom *</label><input type="text" id="r_prenom" placeholder="Votre prénom"></div>
+        <div class="form-group"><label>Société</label><input type="text" id="r_societe" placeholder="Votre société"></div>
+        <div class="form-group"><label>Téléphone *</label><input type="tel" id="r_tel" placeholder="06 XX XX XX XX"></div>
+        <div class="form-group"><label>Email *</label><input type="email" id="r_email" placeholder="votre@email.fr"></div>
+        <div class="form-group"><label>Qualité</label><select id="r_qualite"><option value="">— Votre qualité —</option><option>Développeur / Opérateur</option><option>Promoteur immobilier</option><option>Investisseur</option><option>Industriel / Logisticien</option><option>Agriculteur / Exploitant</option><option>Collectivité</option><option>Particulier</option><option>Autre</option></select></div>
+        <div style="background:rgba(184,151,58,0.06);border:1px solid rgba(184,151,58,0.2);border-radius:2px;padding:12px;margin-top:1.5rem;font-size:.72rem;color:var(--gray);line-height:1.6">🔒 <strong style="color:var(--navy)">Confidentialité garantie.</strong> Vos critères sont transmis exclusivement à notre équipe.</div>
+        <button class="submit-btn" onclick="submitRForm()">Envoyer ma recherche →</button>
+        <p style="font-size:.68rem;color:var(--gray);text-align:center;margin-top:1rem;line-height:1.6">Un conseiller vous contactera sous 48h ouvrées.</p>
+      </div><!-- end sidebar-body-rest -->
+    </div>
+    <div class="map-outer">
+      <div class="search-address-bar"><input type="text" id="r_addressSearch" placeholder="Rechercher une adresse, commune…" onkeypress="if(event.key==='Enter')searchRAddress()"><button onclick="searchRAddress()">🔍</button></div>
+      <div id="rMap"></div>
+      <div id="rMapFallback" style="display:none;position:absolute;inset:0;background:var(--navy);align-items:center;justify-content:center;flex-direction:column;gap:1rem;z-index:10"><div style="font-size:2rem">🗺️</div><div style="color:var(--white);font-family:var(--font-serif)">Carte non disponible</div><div style="color:rgba(255,255,255,0.5);font-size:.78rem;text-align:center;max-width:280px;line-height:1.7">Précisez votre zone dans la description.</div></div>
+      <div class="map-controls">
+        <button class="map-layer-btn active" id="rBtnCadastreOn" onclick="toggleRCadastre(true)">Cadastre ON</button>
+      </div>
+      <div id="rParcelsBadge" style="display:none;position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:#D4AF57;color:#0F1E2D;padding:9px 22px;border-radius:3px;font-size:.78rem;font-weight:700;letter-spacing:1px;z-index:500;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid #0F1E2D;align-items:center;gap:8px;white-space:nowrap;"></div>
+      <div class="map-info-box" id="rMapInfoBox">Zoomez et cliquez sur une zone pour la sélectionner</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RECHERCHE -->
+<div class="modal-overlay" id="rSuccessModal">
+  <div class="modal-box">
+    <div class="modal-icon">🎯</div>
+    <div class="modal-title">Recherche envoyée</div>
+    <p class="modal-text">Un conseiller Foncier Stratégie vous contactera s
