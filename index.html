@@ -7,7 +7,7 @@
 <script>(function(){window.onerror=function(){return true;};window.addEventListener('error',function(e){e.stopPropagation();e.preventDefault();},true);window.addEventListener('unhandledrejection',function(e){e.preventDefault();});})();
 // ─── RECHERCHE PAGE ──────────────────────────────────────────────
 let rMapInitialized = false;
-let rMap, rCadastreLayer, rSelectedParcels = [], rSelectedLayers = [];
+let rMap, rSelectedParcels = [], rSelGeoJSON = {type:'FeatureCollection',features:[]};
 const rSelectedProjects = new Set();
 
 function showRecherche() {
@@ -16,9 +16,9 @@ function showRecherche() {
   document.getElementById('recherchePage').style.display = 'block';
   window.scrollTo(0,0);
   if (!rMapInitialized) {
-    loadLeaflet(() => { setTimeout(() => { initRMap(); rMapInitialized = true; }, 150); });
+    loadMapLibre(() => { setTimeout(() => { initRMap(); rMapInitialized = true; }, 150); });
   } else {
-    setTimeout(() => { if (rMap) rMap.invalidateSize(); }, 200);
+    setTimeout(() => { if (rMap) rMap.resize(); }, 200);
   }
   return false;
 }
@@ -26,81 +26,45 @@ function showRecherche() {
 
 
 function initRMap() {
-  if (!window.L) { document.getElementById('rMapFallback').style.display = 'flex'; return; }
+  if (!window.maplibregl) { document.getElementById('rMapFallback').style.display = 'flex'; return; }
   try {
-    rMap = L.map('rMap', {zoomControl:true, tap:true}).setView([46.5, 2.5], 6);
-    const satIGN=L.tileLayer(
-      'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'+
-      '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg'+
-      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
-      {attribution:'© IGN',maxZoom:21,maxNativeZoom:21}
-    ).addTo(rMap);
-    const osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:20});
-    rCadastreLayer=L.tileLayer(
-      'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'+
-      '&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&STYLE=normal&FORMAT=image/png'+
-      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
-      {attribution:'© IGN Cadastre',opacity:0.8,maxZoom:21,minZoom:13}
-    ).addTo(rMap);
-    L.control.layers({'🛰 Satellite IGN':satIGN,'🗺 Plan':osm},{'📐 Parcelles cadastrales':rCadastreLayer},{collapsed:true}).addTo(rMap);
-  } catch(e) { document.getElementById('rMapFallback').style.display = 'flex'; return; }
-  rMap.on('click', onRMapClick);
-  rMap.on('zoomend', () => {
-    const z=rMap.getZoom();
-    const box=document.getElementById('rMapInfoBox');
-    if(z<13) box.textContent='🔍 Zoomez sur votre zone de recherche';
-    else if(z<15) box.textContent='📐 Parcelles visibles — cliquez pour sélectionner';
-    else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';
-  });
+    rMap = new maplibregl.Map({container:'rMap',style:makeMapStyle(),center:[2.5,46.5],zoom:6});
+    rMap.addControl(new maplibregl.NavigationControl(),'top-right');
+    rMap.on('mouseenter','parc-fill',()=>{rMap.getCanvas().style.cursor='pointer';});
+    rMap.on('mouseleave','parc-fill',()=>{rMap.getCanvas().style.cursor='';});
+    rMap.on('click',onRMapClick);rMap.on('zoom',updateRMapHint);rMap.on('load',updateRMapHint);
+  } catch(e) { console.error(e); document.getElementById('rMapFallback').style.display = 'flex'; }
 }
+function updateRMapHint(){if(!rMap)return;const z=rMap.getZoom(),box=document.getElementById('rMapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre zone de recherche';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez pour sélectionner';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
 
 function toggleRCadastre(on) {
   if (!rMap) return;
   document.getElementById('rBtnCadastreOn').classList.toggle('active', on);
   document.getElementById('rBtnCadastreOff').classList.toggle('active', !on);
-  if (on && !rMap.hasLayer(rCadastreLayer)) rMap.addLayer(rCadastreLayer);
-  if (!on && rMap.hasLayer(rCadastreLayer)) rMap.removeLayer(rCadastreLayer);
+  const v=on?'visible':'none';['parc-fill','parc-line'].forEach(l=>{if(rMap.getLayer(l))rMap.setLayoutProperty(l,'visibility',v);});
 }
 
-async function onRMapClick(e) {
+function onRMapClick(e) {
   const z=rMap.getZoom();
   if(z<13){document.getElementById('rMapInfoBox').textContent='🔍 Zoomez davantage pour identifier une parcelle';return;}
-  const {lat, lng} = e.latlng;
-  document.getElementById('rMapInfoBox').textContent='⏳ Identification de la parcelle…';
-  try {
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),8000);
-    const res = await fetch(
-      `https://apicarto.ign.fr/api/cadastre/parcelle?lon=${lng.toFixed(6)}&lat=${lat.toFixed(6)}&_limit=1`,
-      {signal:controller.signal}
-    );
-    clearTimeout(timer);
-    const data = await res.json();
-    if (data.features && data.features.length > 0) {
-      const f = data.features[0], p = f.properties;
-      const id = p.id || (p.commune+(p.prefixe||'')+(p.section||'')+(p.numero||''));
-      if (rSelectedParcels.find(x => x.id === id)) { showRMapInfo('ℹ️ Parcelle déjà sélectionnée'); return; }
-      const layer = L.geoJSON(f, {style:{color:'#B8973A',weight:3,fillColor:'#D4AF57',fillOpacity:0.35}}).addTo(rMap);
-      rMap.fitBounds(layer.getBounds(),{maxZoom:18,padding:[40,40]});
-      rSelectedLayers.push({id, layer});
-      const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
-      rSelectedParcels.push({id,commune:p.nom_com||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface,code_insee:p.commune||''});
-      renderRParcels(); showRMapInfo('✅ Parcelle '+id+' sélectionnée — '+surface);
-    } else { showRMapInfo('⚠️ Aucune parcelle trouvée — zoomez davantage'); }
-  } catch(err) {
-    const id=`GPS_${lat.toFixed(4)}_${lng.toFixed(4)}`;
-    if(!rSelectedParcels.find(x=>x.id===id)){
-      const layer=L.circleMarker([lat,lng],{color:'#B8973A',weight:3,radius:12,fillColor:'#D4AF57',fillOpacity:0.4}).addTo(rMap);
-      rSelectedLayers.push({id,layer});rSelectedParcels.push({id:'Point GPS',commune:'À préciser',section:'—',numero:'—',surface:'—'});
-      renderRParcels();showRMapInfo('📍 Point GPS noté');
-    }
-  }
+  const features=rMap.queryRenderedFeatures(e.point,{layers:['parc-fill']});
+  if(features.length>0){
+    const f=features[0],p=f.properties;
+    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
+    if(rSelectedParcels.find(x=>x.id===id)){showRMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
+    rSelGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
+    if(rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);
+    try{rMap.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
+    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
+    rSelectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
+    renderRParcels();showRMapInfo('✅ Parcelle sélectionnée — '+surface);
+  }else{showRMapInfo('⚠️ Zoomez davantage (zoom ≥ 15) et cliquez sur une parcelle orange');}
 }
 
-function removeRParcel(id) { rSelectedParcels = rSelectedParcels.filter(x => x.id !== id); const li = rSelectedLayers.findIndex(x => x.id === id); if (li > -1) { rMap.removeLayer(rSelectedLayers[li].layer); rSelectedLayers.splice(li, 1); } renderRParcels(); }
-function renderRParcels() { const l = document.getElementById('rParcelsList'); if (!rSelectedParcels.length) { l.innerHTML = '<p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p>'; return; } l.innerHTML = rSelectedParcels.map(p => `<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeRParcel('${p.id}')">✕</button></div>`).join(''); }
-function showRMapInfo(msg) { document.getElementById('rMapInfoBox').textContent = msg; setTimeout(() => { if (rMap) document.getElementById('rMapInfoBox').textContent = rMap.getZoom() < 14 ? 'Zoomez davantage (≥ 14)' : 'Cliquez sur une zone pour la sélectionner'; }, 3500); }
-async function searchRAddress() { const q = document.getElementById('r_addressSearch').value.trim(); if (!q || !rMap) return; try { const r = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`); const d = await r.json(); if (d.features && d.features.length) { const [lng, lat] = d.features[0].geometry.coordinates; rMap.setView([lat, lng], 17); L.marker([lat, lng]).addTo(rMap).bindPopup(d.features[0].properties.label).openPopup(); } } catch(e) {} }
+function removeRParcel(id){rSelectedParcels=rSelectedParcels.filter(x=>x.id!==id);rSelGeoJSON.features=rSelGeoJSON.features.filter(f=>f.properties.id!==id);if(rMap&&rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);renderRParcels();}
+function renderRParcels(){const l=document.getElementById('rParcelsList');const badge=document.getElementById('rParcelsBadge');if(!rSelectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p>';if(badge)badge.style.display='none';return;}if(badge){badge.style.display='flex';badge.textContent='📌 '+rSelectedParcels.length+' parcelle'+(rSelectedParcels.length>1?'s':'')+' sélectionnée'+(rSelectedParcels.length>1?'s':'');}l.innerHTML=rSelectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeRParcel('${p.id}')">✕</button></div>`).join('');}
+function showRMapInfo(msg){document.getElementById('rMapInfoBox').textContent=msg;setTimeout(()=>{if(rMap)document.getElementById('rMapInfoBox').textContent=rMap.getZoom()<14?'🔍 Zoomez davantage':'✅ Cliquez sur une parcelle';},3500);}
+async function searchRAddress(){const q=document.getElementById('r_addressSearch').value.trim();if(!q||!rMap)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;rMap.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(rMap).togglePopup();}}catch(e){}}
 function toggleRProject(el) { const v = el.dataset.value; if (rSelectedProjects.has(v)) { rSelectedProjects.delete(v); el.classList.remove('selected'); } else { rSelectedProjects.add(v); el.classList.add('selected'); } }
 async function submitRForm() {
   const n=document.getElementById('r_nom').value.trim(),p=document.getElementById('r_prenom').value.trim(),t=document.getElementById('r_tel').value.trim(),e=document.getElementById('r_email').value.trim();
@@ -588,8 +552,8 @@ footer{background:var(--navy);padding:5rem 4rem 2rem;}
       <div id="mapFallback" style="display:none;position:absolute;inset:0;background:var(--navy);align-items:center;justify-content:center;flex-direction:column;gap:1rem;z-index:10"><div style="font-size:2rem">🗺️</div><div style="color:var(--white);font-family:var(--font-serif)">Carte non disponible</div><div style="color:rgba(255,255,255,0.5);font-size:.78rem;text-align:center;max-width:280px;line-height:1.7">Précisez votre commune et référence cadastrale dans la description.</div></div>
       <div class="map-controls">
         <button class="map-layer-btn active" id="btnCadastreOn" onclick="toggleCadastre(true)">Cadastre ON</button>
-        <button class="map-layer-btn" id="btnCadastreOff" onclick="toggleCadastre(false)">Cadastre OFF</button>
       </div>
+      <div id="parcelsBadge" style="display:none;position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:#D4AF57;color:#0F1E2D;padding:9px 22px;border-radius:3px;font-size:.78rem;font-weight:700;z-index:500;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid #0F1E2D;align-items:center;white-space:nowrap;"></div>
       <div class="map-info-box" id="mapInfoBox">Zoomez et cliquez sur une parcelle pour la sélectionner</div>
     </div>
   </div>
@@ -615,7 +579,7 @@ const cartePage = document.getElementById('cartePage');
 let mapInitialized = false;
 
 function showMain(){mainSite.style.display='block';cartePage.classList.remove('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);}
-function showCarte(){mainSite.style.display='none';cartePage.classList.add('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);if(!mapInitialized){loadLeaflet(()=>{setTimeout(()=>{initMap();mapInitialized=true;},150);});}else{setTimeout(()=>{if(map)map.invalidateSize();},200);}return false;}
+function showCarte(){mainSite.style.display='none';cartePage.classList.add('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);if(!mapInitialized){loadMapLibre(()=>{setTimeout(()=>{initMap();mapInitialized=true;},150);});}else{setTimeout(()=>{if(map)map.resize();},200);}return false;}
 function showMainAndScroll(id){showMain();setTimeout(()=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});},100);return false;}
 function toggleDrawer(){document.getElementById('navDrawer').classList.toggle('open');}
 
@@ -624,133 +588,53 @@ try{const o=new IntersectionObserver(e=>e.forEach(e=>{if(e.isIntersecting)e.targ
 const selectedProjects=new Set();
 function toggleProject(el){const v=el.dataset.value;if(selectedProjects.has(v)){selectedProjects.delete(v);el.classList.remove('selected');}else{selectedProjects.add(v);el.classList.add('selected');}}
 
-function loadLeaflet(cb){
-  if(window.L){cb();return;}
-  if(!document.getElementById('lf-css')){const l=document.createElement('link');l.id='lf-css';l.rel='stylesheet';l.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);}
-  const cdns=['https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js','https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js','https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'];
-  let i=0;
-  function t(){if(i>=cdns.length){document.getElementById('mapFallback').style.display='flex';return;}const s=document.createElement('script');s.src=cdns[i++];s.onload=()=>{if(window.L)cb();else t();};s.onerror=t;document.head.appendChild(s);}
-  t();
+function loadMapLibre(cb){
+  if(window.maplibregl){cb();return;}
+  if(!document.getElementById('ml-css')){const l=document.createElement('link');l.id='ml-css';l.rel='stylesheet';l.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';document.head.appendChild(l);}
+  const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+  s.onload=()=>{if(window.maplibregl)cb();else document.getElementById('mapFallback').style.display='flex';};
+  s.onerror=()=>{document.getElementById('mapFallback').style.display='flex';};
+  document.head.appendChild(s);
 }
-
-let map,cadastreLayer,selectedParcels=[],selectedLayers=[];
+const CADASTRE_TILES='https://openmaptiles.geo.data.gouv.fr/data/cadastre.json';
+const SAT_TILES='https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
+function makeMapStyle(){return{version:8,glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',sources:{satellite:{type:'raster',tiles:[SAT_TILES],tileSize:256,attribution:'© IGN',maxzoom:21},cadastre:{type:'vector',url:CADASTRE_TILES},'sel':{type:'geojson',data:{type:'FeatureCollection',features:[]}}},layers:[{id:'satellite',type:'raster',source:'satellite'},{id:'parc-fill',type:'fill',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'fill-color':'transparent','fill-opacity':0.01}},{id:'parc-line',type:'line',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'line-color':'#FF6B00','line-width':1}},{id:'sel-fill',type:'fill',source:'sel',paint:{'fill-color':'#D4AF57','fill-opacity':0.55}},{id:'sel-line',type:'line',source:'sel',paint:{'line-color':'#0F1E2D','line-width':2.5}}]};}
+function getBounds(geom){const b=new maplibregl.LngLatBounds();function add(c){if(typeof c[0]==='number')b.extend(c);else c.forEach(add);}add(geom.coordinates);return b;}
+let map,selectedParcels=[],selGeoJSON={type:'FeatureCollection',features:[]};
 function initMap(){
-  if(!window.L){document.getElementById('mapFallback').style.display='flex';return;}
+  if(!window.maplibregl){document.getElementById('mapFallback').style.display='flex';return;}
   try{
-    map=L.map('map',{zoomControl:true,tap:true}).setView([46.5,2.5],6);
-
-    // Satellite IGN (gratuit, sans clé)
-    const satIGN=L.tileLayer(
-      'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'+
-      '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg'+
-      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
-      {attribution:'© IGN Géoportail',maxZoom:21,maxNativeZoom:21}
-    ).addTo(map);
-
-    // Satellite Esri (fallback)
-    const satEsri=L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      {attribution:'© Esri',maxZoom:20}
-    );
-
-    // Plan OSM
-    const osm=L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {attribution:'© OpenStreetMap',maxZoom:20}
-    );
-
-    // Cadastre IGN (visible zoom ≥ 13)
-    cadastreLayer=L.tileLayer(
-      'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'+
-      '&LAYER=CADASTRALPARCELS.PARCELLAIRE_EXPRESS&STYLE=normal&FORMAT=image/png'+
-      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
-      {attribution:'© IGN Cadastre',opacity:0.8,maxZoom:21,minZoom:13}
-    ).addTo(map);
-
-    L.control.layers(
-      {'🛰 Satellite IGN':satIGN,'🛰 Satellite Esri':satEsri,'🗺 Plan':osm},
-      {'📐 Parcelles cadastrales':cadastreLayer},
-      {position:'topright',collapsed:true}
-    ).addTo(map);
-
-  }catch(e){document.getElementById('mapFallback').style.display='flex';return;}
-
-  map.on('click',onMapClick);
-  map.on('zoomend',updateMapHint);
-  updateMapHint();
+    map=new maplibregl.Map({container:'map',style:makeMapStyle(),center:[2.5,46.5],zoom:6});
+    map.addControl(new maplibregl.NavigationControl(),'top-right');
+    map.on('mouseenter','parc-fill',()=>{map.getCanvas().style.cursor='pointer';});
+    map.on('mouseleave','parc-fill',()=>{map.getCanvas().style.cursor='';});
+    map.on('click',onMapClick);map.on('zoom',updateMapHint);map.on('load',updateMapHint);
+  }catch(e){console.error(e);document.getElementById('mapFallback').style.display='flex';}
 }
-
-function updateMapHint(){
-  if(!map)return;
-  const z=map.getZoom();
-  const box=document.getElementById('mapInfoBox');
-  if(z<13) box.textContent='🔍 Zoomez sur votre commune pour voir les parcelles';
-  else if(z<15) box.textContent='📐 Parcelles visibles — cliquez sur la vôtre';
-  else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';
-}
-function toggleCadastre(on){if(!map)return;document.getElementById('btnCadastreOn').classList.toggle('active',on);document.getElementById('btnCadastreOff').classList.toggle('active',!on);if(on&&!map.hasLayer(cadastreLayer))map.addLayer(cadastreLayer);if(!on&&map.hasLayer(cadastreLayer))map.removeLayer(cadastreLayer);}
-async function onMapClick(e){
+function updateMapHint(){if(!map)return;const z=map.getZoom(),box=document.getElementById('mapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre commune pour voir les parcelles';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez sur la vôtre';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
+function toggleCadastre(on){if(!map)return;document.getElementById('btnCadastreOn').classList.toggle('active',on);const v=on?'visible':'none';['parc-fill','parc-line'].forEach(l=>{if(map.getLayer(l))map.setLayoutProperty(l,'visibility',v);});}
+function onMapClick(e){
   const z=map.getZoom();
   if(z<13){showMapInfo('🔍 Zoomez davantage pour identifier une parcelle');return;}
-  const{lat,lng}=e.latlng;
-  showMapInfo('⏳ Identification de la parcelle…');
-  try{
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),8000);
-    const res=await fetch(
-      `https://apicarto.ign.fr/api/cadastre/parcelle?lon=${lng.toFixed(6)}&lat=${lat.toFixed(6)}&_limit=1`,
-      {signal:controller.signal}
-    );
-    clearTimeout(timer);
-    const data=await res.json();
-    if(data.features&&data.features.length>0){
-      const f=data.features[0],p=f.properties;
-      const id=p.id||(p.commune+(p.prefixe||'')+(p.section||'')+(p.numero||''));
-      if(selectedParcels.find(x=>x.id===id)){showMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
-      // Dessiner le polygone exact de la parcelle
-      const layer=L.geoJSON(f,{
-        style:{color:'#B8973A',weight:3,fillColor:'#D4AF57',fillOpacity:0.35}
-      }).addTo(map);
-      // Centrer la vue sur la parcelle
-      map.fitBounds(layer.getBounds(),{maxZoom:18,padding:[40,40]});
-      selectedLayers.push({id,layer});
-      const surface=p.contenance
-        ?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²')
-        :'—';
-      selectedParcels.push({
-        id,
-        commune:p.nom_com||p.commune||'—',
-        section:p.section||'—',
-        numero:p.numero||'—',
-        surface,
-        prefixe:p.prefixe||'',
-        code_insee:p.commune||''
-      });
-      renderParcels();
-      showMapInfo('✅ Parcelle '+id+' sélectionnée — '+surface);
-    }else{
-      showMapInfo('⚠️ Aucune parcelle trouvée ici — zoomez davantage et réessayez');
-    }
-  }catch(err){
-    if(err.name==='AbortError'){
-      showMapInfo('⏱ Délai dépassé — vérifiez votre connexion');
-    } else {
-      // Fallback point GPS
-      const id=`GPS_${lat.toFixed(4)}_${lng.toFixed(4)}`;
-      if(!selectedParcels.find(x=>x.id===id)){
-        const layer=L.circleMarker([lat,lng],{color:'#B8973A',weight:3,radius:12,fillColor:'#D4AF57',fillOpacity:0.4}).addTo(map);
-        selectedLayers.push({id,layer});
-        selectedParcels.push({id:'Point GPS',commune:'À préciser',section:'—',numero:'—',surface:'—',lat:lat.toFixed(6),lng:lng.toFixed(6)});
-        renderParcels();
-        showMapInfo('📍 Point GPS noté — précisez la référence dans la description');
-      }
-    }
+  const features=map.queryRenderedFeatures(e.point,{layers:['parc-fill']});
+  if(features.length>0){
+    const f=features[0],p=f.properties;
+    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
+    if(selectedParcels.find(x=>x.id===id)){showMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
+    selGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
+    if(map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);
+    try{map.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
+    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
+    selectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
+    renderParcels();showMapInfo('✅ Parcelle sélectionnée — '+surface);
+  }else{
+    showMapInfo('⚠️ Zoomez davantage (zoom ≥ 15) et cliquez sur une parcelle orange');
   }
 }
-function removeParcel(id){selectedParcels=selectedParcels.filter(x=>x.id!==id);const li=selectedLayers.findIndex(x=>x.id===id);if(li>-1){map.removeLayer(selectedLayers[li].layer);selectedLayers.splice(li,1);}renderParcels();}
-function renderParcels(){const l=document.getElementById('parcelsList');if(!selectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p>';return;}l.innerHTML=selectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeParcel('${p.id}')">✕</button></div>`).join('');}
-function showMapInfo(msg){document.getElementById('mapInfoBox').textContent=msg;setTimeout(()=>{if(map)document.getElementById('mapInfoBox').textContent=map.getZoom()<14?'Zoomez davantage (≥ 14)':'Cliquez sur une parcelle';},3500);}
-async function searchAddress(){const q=document.getElementById('addressSearch').value.trim();if(!q)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;map.setView([lat,lng],17);L.marker([lat,lng]).addTo(map).bindPopup(d.features[0].properties.label).openPopup();}}catch(e){}}
+function removeParcel(id){selectedParcels=selectedParcels.filter(x=>x.id!==id);selGeoJSON.features=selGeoJSON.features.filter(f=>f.properties.id!==id);if(map&&map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);renderParcels();}
+function renderParcels(){const l=document.getElementById('parcelsList');const badge=document.getElementById('parcelsBadge');if(!selectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p>';if(badge)badge.style.display='none';return;}if(badge){badge.style.display='flex';badge.textContent='📌 '+selectedParcels.length+' parcelle'+(selectedParcels.length>1?'s':'')+' sélectionnée'+(selectedParcels.length>1?'s':'');}l.innerHTML=selectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeParcel('${p.id}')">✕</button></div>`).join('');}
+function showMapInfo(msg){document.getElementById('mapInfoBox').textContent=msg;setTimeout(()=>{if(map)document.getElementById('mapInfoBox').textContent=map.getZoom()<14?'🔍 Zoomez davantage':'✅ Cliquez sur une parcelle';},3500);}
+async function searchAddress(){const q=document.getElementById('addressSearch').value.trim();if(!q||!map)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;map.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(map).togglePopup();}}catch(e){}}
 async function submitForm(){
   const n=document.getElementById('nom').value.trim(),p=document.getElementById('prenom').value.trim(),t=document.getElementById('tel').value.trim(),e=document.getElementById('email').value.trim();
   if(!n||!p||!t||!e){alert('Veuillez remplir les champs obligatoires.');return;}
@@ -773,18 +657,14 @@ function closeModal(){document.getElementById('successModal').classList.remove('
 
 <!-- RECHERCHE PAGE -->
 <div id="recherchePage" style="display:none;min-height:100vh;">
-  <div class="carte-wrapper">
-    <div class="carte-sidebar">
+  <div class="carte-wrapper" style="grid-template-columns:1fr;height:auto;">
+    <div class="carte-sidebar" style="border-right:none;max-width:680px;margin:0 auto;width:100%;">
       <div class="sidebar-header" style="background:linear-gradient(135deg,var(--navy-mid),var(--navy))">
         <h3>Je recherche un bien</h3>
-        <p>Sélectionnez vos parcelles sur la carte, précisez vos critères et laissez-nous vos coordonnées.</p>
+        <p>Précisez vos critères et laissez-nous vos coordonnées. Notre équipe vous contactera sous 48h.</p>
       </div>
       <div class="sidebar-body">
-        <div class="form-section-title">1 — Localisation par adresse</div>
-        <div class="map-instruction"><strong>Comment ça marche :</strong> Recherchez une adresse ou zoomez sur la carte → cliquez sur la zone qui vous intéresse (couche cadastrale activée).</div>
-        <div class="form-section-title">2 — Parcelles / zones d'intérêt</div>
-        <div id="rParcelsList"><p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p></div>
-        <div class="form-section-title">3 — Type de bien recherché</div>
+        <div class="form-section-title">1 — Type de bien recherché</div>
         <p style="font-size:.72rem;color:var(--gray);margin-bottom:.75rem">Sélectionnez un ou plusieurs types :</p>
         <div class="projects-grid">
           <div class="proj-chip" onclick="toggleRProject(this)" data-value="solaire"><span class="proj-chip-icon">☀️</span>Projet solaire</div>
@@ -808,10 +688,10 @@ function closeModal(){document.getElementById('successModal').classList.remove('
           <div class="proj-chip" onclick="toggleRProject(this)" data-value="antenne"><span class="proj-chip-icon">📡</span>Antenne</div>
           <div class="proj-chip" onclick="toggleRProject(this)" data-value="autre" style="grid-column:span 2"><span class="proj-chip-icon">💡</span>Autre / bien non listé</div>
         </div>
-        <div class="form-section-title">4 — Critères</div>
+        <div class="form-section-title">2 — Critères</div>
         <div class="form-group"><label>Surface minimale (ha)</label><input type="number" id="r_surface" placeholder="ex : 5" min="0" step="0.5"></div>
         <div class="form-group"><label>Précisions</label><textarea id="r_description" placeholder="Zone géographique, accès, PLU souhaité, configuration, contraintes…"></textarea></div>
-        <div class="form-section-title">5 — Vos coordonnées</div>
+        <div class="form-section-title">3 — Vos coordonnées</div>
         <div class="form-group"><label>Nom *</label><input type="text" id="r_nom" placeholder="Votre nom"></div>
         <div class="form-group"><label>Prénom *</label><input type="text" id="r_prenom" placeholder="Votre prénom"></div>
         <div class="form-group"><label>Société</label><input type="text" id="r_societe" placeholder="Votre société"></div>
@@ -822,17 +702,6 @@ function closeModal(){document.getElementById('successModal').classList.remove('
         <button class="submit-btn" onclick="submitRForm()">Envoyer ma recherche →</button>
         <p style="font-size:.68rem;color:var(--gray);text-align:center;margin-top:1rem;line-height:1.6">Un conseiller vous contactera sous 48h ouvrées.</p>
       </div>
-    </div>
-    <div class="map-outer">
-      <div class="search-address-bar"><input type="text" id="r_addressSearch" placeholder="Rechercher une adresse, commune…" onkeypress="if(event.key==='Enter')searchRAddress()"><button onclick="searchRAddress()">🔍</button></div>
-      <div id="rMap"></div>
-      <div id="rMapFallback" style="display:none;position:absolute;inset:0;background:var(--navy);align-items:center;justify-content:center;flex-direction:column;gap:1rem;z-index:10"><div style="font-size:2rem">🗺️</div><div style="color:var(--white);font-family:var(--font-serif)">Carte non disponible</div><div style="color:rgba(255,255,255,0.5);font-size:.78rem;text-align:center;max-width:280px;line-height:1.7">Précisez votre zone dans la description.</div></div>
-      <div class="map-controls">
-        <button class="map-layer-btn active" id="rBtnCadastreOn" onclick="toggleRCadastre(true)">Cadastre ON</button>
-        <button class="map-layer-btn" id="rBtnCadastreOff" onclick="toggleRCadastre(false)">Cadastre OFF</button>
-      </div>
-      <div class="map-info-box" id="rMapInfoBox">Zoomez et cliquez sur une zone pour la sélectionner</div>
-    </div>
   </div>
 </div>
 
