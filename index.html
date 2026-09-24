@@ -2,754 +2,148 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Foncier Stratégie – Valorisation & Cession de Terrain en France</title>
-
-<!-- SEO Primaire -->
-<meta name="description" content="Foncier Stratégie, cabinet spécialisé dans la valorisation et cession de foncier. Projet solaire, agrivoltaïque, éolien, immobilier, industriel. Intervention sur toute la France. Déposez votre bien gratuitement.">
-<meta name="keywords" content="valorisation foncière, vendre terrain agricole, projet solaire terrain, céder terrain, foncier stratégie, cabinet foncier, terrain agrivoltaïque, projet éolien terrain, cession terrain industriel, vendre terrain constructible">
-<meta name="author" content="Foncier Stratégie">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Louer ou vendre son terrain : solaire, agrivoltaïsme, batteries, data center | Foncier Stratégie</title>
+<meta name="description" content="Location et vente de terrains pour centrale solaire, agrivoltaïsme, stockage batterie, data center, éolien, carrière et remblais. Sélectionnez vos parcelles en ligne : étude gratuite, honoraires au succès.">
 <meta name="robots" content="index, follow">
-<link rel="canonical" href="https://www.foncierstrategie.fr/">
-
-<!-- Open Graph (Facebook, LinkedIn) -->
+<link rel="canonical" href="https://foncierstrategie.fr/">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://www.foncierstrategie.fr/">
-<meta property="og:title" content="Foncier Stratégie – Valorisation & Cession de Terrain">
-<meta property="og:description" content="Cabinet indépendant spécialisé dans la valorisation foncière. Projet solaire, agrivoltaïque, éolien, immobilier. Déposez votre bien gratuitement, nous vous contactons sous 48h.">
 <meta property="og:site_name" content="Foncier Stratégie">
 <meta property="og:locale" content="fr_FR">
-
-<!-- Twitter Card -->
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Foncier Stratégie – Valorisation & Cession de Terrain">
-<meta name="twitter:description" content="Cabinet indépendant spécialisé dans la valorisation foncière. Projet solaire, agrivoltaïque, éolien, immobilier. Déposez votre bien gratuitement.">
-
-<!-- Données structurées Schema.org -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "ProfessionalService",
-  "name": "Foncier Stratégie",
-  "description": "Cabinet indépendant spécialisé dans la valorisation et cession de foncier en France. Projets solaires, agrivoltaïques, éoliens, immobiliers et industriels.",
-  "url": "https://www.foncierstrategie.fr",
-  "telephone": "contact@foncierstrategie.fr",
-  "email": "contact@foncierstrategie.fr",
-  "areaServed": "France",
-  "serviceType": ["Valorisation foncière", "Cession de terrain", "Conseil foncier", "Projet solaire", "Projet agrivoltaïque", "Projet éolien"],
-  "priceRange": "Gratuit pour les propriétaires",
-  "address": {
-    "@type": "PostalAddress",
-    "addressCountry": "FR"
-  }
-}
-</script>
-<script>(function(){window.onerror=function(){return true;};window.addEventListener('error',function(e){e.stopPropagation();e.preventDefault();},true);window.addEventListener('unhandledrejection',function(e){e.preventDefault();});})();
-// ─── RECHERCHE PAGE ──────────────────────────────────────────────
-let rMapInitialized = false;
-let rMap, rSelectedParcels = [], rSelGeoJSON = {type:'FeatureCollection',features:[]};
-const rSelectedProjects = new Set();
-
-function showRecherche() {
-  mainSite.style.display = 'none';
-  cartePage.classList.remove('active');
-  document.getElementById('recherchePage').style.display = 'block';
-  window.scrollTo(0,0);
-  if (!rMapInitialized) {
-    loadMapLibre(() => { setTimeout(() => { initRMap(); rMapInitialized = true; }, 150); });
-  } else {
-    setTimeout(() => { if (rMap) rMap.resize(); }, 200);
-  }
-  return false;
-}
-
-
-
-function initRMap() {
-  if (!window.maplibregl) { document.getElementById('rMapFallback').style.display = 'flex'; return; }
-  try {
-    rMap = new maplibregl.Map({container:'rMap',style:makeMapStyle(),center:[2.5,46.5],zoom:6});
-    rMap.addControl(new maplibregl.NavigationControl(),'top-right');
-    rMap.on('mouseenter','parc-fill',()=>{rMap.getCanvas().style.cursor='pointer';});
-    rMap.on('mouseleave','parc-fill',()=>{rMap.getCanvas().style.cursor='';});
-    rMap.on('click',onRMapClick);rMap.on('zoom',updateRMapHint);rMap.on('load',updateRMapHint);
-    setTimeout(()=>{if(rMap)rMap.resize();},300);
-  } catch(e) { console.error(e); document.getElementById('rMapFallback').style.display = 'flex'; }
-}
-function updateRMapHint(){if(!rMap)return;const z=rMap.getZoom(),box=document.getElementById('rMapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre zone de recherche';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez pour sélectionner';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
-
-function toggleRCadastre(on){if(!rMap)return;document.getElementById('rBtnCadastreOn').classList.toggle('active',on);const v=on?'visible':'none';['parc-fill','parc-line'].forEach(l=>{if(rMap.getLayer(l))rMap.setLayoutProperty(l,'visibility',v);});}
-
-function onRMapClick(e){
-  const z=rMap.getZoom();
-  if(z<13){document.getElementById('rMapInfoBox').textContent='🔍 Zoomez davantage';return;}
-  const features=rMap.queryRenderedFeatures(e.point,{layers:['parc-fill']});
-  if(features.length>0){
-    const f=features[0],p=f.properties;
-    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
-    if(rSelectedParcels.find(x=>x.id===id)){showRMapInfo('ℹ️ Déjà sélectionnée');return;}
-    rSelGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
-    if(rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);
-    try{rMap.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
-    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
-    rSelectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
-    renderRParcels();showRMapInfo('✅ Parcelle sélectionnée — '+surface);
-  }else{showRMapInfo('⚠️ Zoomez davantage et cliquez sur une parcelle orange');}
-}
-
-function removeRParcel(id){rSelectedParcels=rSelectedParcels.filter(x=>x.id!==id);rSelGeoJSON.features=rSelGeoJSON.features.filter(f=>f.properties.id!==id);if(rMap&&rMap.getSource('sel'))rMap.getSource('sel').setData(rSelGeoJSON);renderRParcels();}
-function renderRParcels(){const l=document.getElementById('rParcelsList');const badge=document.getElementById('rParcelsBadge');if(!rSelectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune zone sélectionnée — cliquez sur la carte</p>';if(badge)badge.style.display='none';return;}if(badge){badge.style.display='flex';badge.textContent='📌 '+rSelectedParcels.length+' parcelle'+(rSelectedParcels.length>1?'s':'')+' sélectionnée'+(rSelectedParcels.length>1?'s':'');}l.innerHTML=rSelectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeRParcel('${p.id}')">✕</button></div>`).join('');}
-function showRMapInfo(msg){document.getElementById('rMapInfoBox').textContent=msg;setTimeout(()=>{if(rMap)document.getElementById('rMapInfoBox').textContent=rMap.getZoom()<14?'🔍 Zoomez davantage':'✅ Cliquez sur une parcelle';},3500);}
-async function searchRAddress(){const q=document.getElementById('r_addressSearch').value.trim();if(!q||!rMap)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;rMap.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(rMap).togglePopup();}}catch(e){}}
-function toggleRProject(el) { const v = el.dataset.value; if (rSelectedProjects.has(v)) { rSelectedProjects.delete(v); el.classList.remove('selected'); } else { rSelectedProjects.add(v); el.classList.add('selected'); } }
-async function submitRForm() {
-  const n=document.getElementById('r_nom').value.trim(),p=document.getElementById('r_prenom').value.trim(),t=document.getElementById('r_tel').value.trim(),e=document.getElementById('r_email').value.trim();
-  if(!n||!p||!t||!e){alert('Veuillez remplir les champs obligatoires.');return;}
-  if(!rSelectedProjects.size){alert('Veuillez sélectionner au moins un type de bien.');return;}
-  try {
-    const {error} = await db.from('recherches').insert({
-      nom:n, prenom:p, tel:t, email:e,
-      societe:document.getElementById('r_societe').value,
-      qualite:document.getElementById('r_qualite').value,
-      surface_min:parseFloat(document.getElementById('r_surface').value)||null,
-      types_bien:[...rSelectedProjects].join(', '),
-      notes:document.getElementById('r_description').value,
-      parcelles:JSON.stringify(rSelectedParcels)
-    });
-    if(error){alert('Erreur : '+error.message);return;}
-  } catch(err){alert('Erreur connexion : '+err.message);return;}
-  document.getElementById('rSuccessModal').classList.add('active');
-}
-function closeRModal() { document.getElementById('rSuccessModal').classList.remove('active'); showMain(); }
-
-</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>
-:root{--gold:#B8973A;--gold-light:#D4AF57;--gold-pale:#F0E4BB;--navy:#0F1E2D;--navy-mid:#1A3048;--navy-light:#243E57;--cream:#F8F4EC;--white:#FFFFFF;--gray:#6B7A89;--font-serif:'Cormorant Garamond','Palatino Linotype',Palatino,Georgia,serif;--font-sans:'Raleway',-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{font-family:var(--font-sans);background:var(--cream);color:#2C3E50;overflow-x:hidden;}
-::-webkit-scrollbar{width:6px;}::-webkit-scrollbar-track{background:var(--navy);}::-webkit-scrollbar-thumb{background:var(--gold);border-radius:3px;}
-nav{position:fixed;top:0;left:0;right:0;z-index:1000;background:rgba(15,30,45,0.97);backdrop-filter:blur(12px);border-bottom:1px solid rgba(184,151,58,0.2);display:flex;align-items:center;justify-content:space-between;padding:0 4rem;height:72px;}
-.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none;}
-.nav-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--gold-light));clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--navy);font-weight:800;flex-shrink:0;}
-.nav-logo-text{display:flex;flex-direction:column;}
-.nav-logo-name{font-family:var(--font-serif);font-size:1.1rem;color:var(--white);letter-spacing:2px;line-height:1;}
-.nav-logo-sub{font-size:0.58rem;color:var(--gold);letter-spacing:4px;text-transform:uppercase;margin-top:2px;}
-.nav-links{display:flex;gap:2rem;list-style:none;align-items:center;}
-.nav-links a{color:rgba(255,255,255,0.75);text-decoration:none;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;transition:color .25s;position:relative;}
-.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;right:0;height:1px;background:var(--gold);transform:scaleX(0);transition:transform .25s;}
-.nav-links a:hover{color:var(--gold);}
-.nav-links a:hover::after{transform:scaleX(1);}
-.nav-cta{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy)!important;padding:10px 22px;border-radius:2px;font-weight:600!important;}
-.nav-cta:hover{box-shadow:0 4px 20px rgba(184,151,58,0.4);}
-.nav-cta::after{display:none!important;}
-.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:8px;}
-.hamburger span{display:block;width:24px;height:2px;background:var(--white);}
-.nav-drawer{position:fixed;top:72px;left:0;right:0;background:var(--navy);z-index:999;padding:1.5rem 2rem 2rem;transform:translateY(-110%);transition:transform .35s;border-bottom:1px solid rgba(184,151,58,0.2);}
-.nav-drawer.open{transform:translateY(0);}
-.nav-drawer ul{list-style:none;}
-.nav-drawer a{display:block;padding:1rem 0;color:rgba(255,255,255,0.75);text-decoration:none;font-size:0.78rem;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid rgba(184,151,58,0.1);}
-#hero{min-height:100vh;position:relative;display:flex;align-items:center;overflow:hidden;}
-.hero-bg{position:absolute;inset:0;background:linear-gradient(160deg,rgba(15,30,45,0.92) 0%,rgba(15,30,45,0.7) 50%,rgba(15,30,45,0.85) 100%),url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1800&q=80') center/cover no-repeat;}
-.hero-bg::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 50%,rgba(184,151,58,0.12) 0%,transparent 60%);}
-.hero-decorline{position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(to bottom,transparent,var(--gold),transparent);}
-.hero-content{position:relative;z-index:1;max-width:760px;padding:0 4rem;padding-top:72px;animation:fadeInUp 1s ease both;}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(184,151,58,0.15);border:1px solid rgba(184,151,58,0.4);padding:6px 16px;border-radius:2px;margin-bottom:2rem;}
-.hero-badge span{font-size:0.65rem;letter-spacing:3px;color:var(--gold);text-transform:uppercase;}
-.hero-badge::before{content:'◆';font-size:8px;color:var(--gold);}
-h1{font-family:var(--font-serif);font-size:clamp(2.8rem,5vw,4.5rem);color:var(--white);line-height:1.08;font-weight:300;margin-bottom:1.5rem;}
-h1 em{font-style:italic;color:var(--gold-light);}
-.hero-sub{font-size:1rem;color:rgba(255,255,255,0.7);line-height:1.8;font-weight:300;max-width:540px;margin-bottom:2.5rem;}
-.hero-actions{display:flex;gap:1rem;flex-wrap:wrap;}
-.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);border:none;padding:14px 32px;font-family:var(--font-sans);font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:600;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
-.btn-primary:hover{box-shadow:0 8px 30px rgba(184,151,58,0.4);transform:translateY(-2px);}
-.btn-ghost{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,0.4);padding:14px 32px;font-family:var(--font-sans);font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
-.btn-ghost:hover{border-color:var(--gold);color:var(--gold);}
-.hero-stats{position:absolute;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:1px;z-index:1;}
-.hero-stat{background:rgba(15,30,45,0.85);border-left:3px solid var(--gold);padding:20px 28px;min-width:160px;backdrop-filter:blur(8px);}
-.hero-stat-num{font-family:var(--font-serif);font-size:2rem;color:var(--gold);line-height:1;}
-.hero-stat-label{font-size:0.65rem;color:rgba(255,255,255,0.6);letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
-.hero-scroll{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;z-index:1;color:rgba(255,255,255,0.4);font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;animation:bounce 2s infinite;}
-.hero-scroll::after{content:'↓';font-size:1rem;color:var(--gold);}
-#promesse{background:var(--navy);padding:5rem 4rem;display:grid;grid-template-columns:1fr 2px 1fr 2px 1fr;}
-.promesse-divider{background:rgba(184,151,58,0.2);}
-.promesse-item{padding:2rem 3rem;text-align:center;}
-.promesse-icon{font-size:2rem;margin-bottom:1rem;}
-.promesse-title{font-family:var(--font-serif);font-size:1.3rem;color:var(--white);margin-bottom:.75rem;}
-.promesse-text{font-size:.8rem;color:rgba(255,255,255,0.5);line-height:1.8;}
-section{padding:7rem 4rem;}
-.section-label{display:flex;align-items:center;gap:12px;margin-bottom:1rem;}
-.section-label span{font-size:.65rem;letter-spacing:4px;text-transform:uppercase;color:var(--gold);font-weight:600;}
-.section-label::after{content:'';flex:0 0 30px;height:1px;background:var(--gold-pale);}
-h2{font-family:var(--font-serif);font-size:clamp(2rem,3.5vw,2.8rem);color:var(--navy);line-height:1.15;font-weight:300;}
-h2 em{color:var(--gold);font-style:italic;}
-.section-intro{font-size:.95rem;color:var(--gray);line-height:1.9;max-width:620px;font-weight:300;margin-top:1.2rem;}
-#typologies{background:var(--cream);}
-.typo-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4rem;flex-wrap:wrap;gap:2rem;}
-.typo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1.5px;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.15);}
-.typo-card{background:var(--white);overflow:hidden;cursor:pointer;position:relative;aspect-ratio:4/3;display:flex;flex-direction:column;justify-content:flex-end;}
-.typo-card-img{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;transition:transform .5s;}
-.typo-card-icon{font-size:5.5rem;opacity:.28;transition:opacity .4s,transform .5s;user-select:none;pointer-events:none;line-height:1;}
-.typo-card:hover .typo-card-img{transform:scale(1.04);}
-.typo-card:hover .typo-card-icon{opacity:.5;transform:scale(1.12);}
-.typo-card::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(5,15,30,0.92) 0%,rgba(5,15,30,0.3) 55%,transparent 100%);}
-.typo-card-content{position:relative;z-index:1;padding:1.5rem 1.5rem 1.2rem;}
-.typo-card-cat{font-size:.6rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:.4rem;}
-.typo-card-title{font-family:var(--font-serif);font-size:1.15rem;color:var(--white);line-height:1.2;}
-.typo-card-arrow{position:absolute;top:1.2rem;right:1.2rem;z-index:1;width:32px;height:32px;border:1px solid rgba(184,151,58,0);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:.8rem;transition:all .3s;}
-.typo-card:hover .typo-card-arrow{background:rgba(184,151,58,0.2);border-color:var(--gold);}
-#processus{background:var(--navy);position:relative;overflow:hidden;}
-#processus::before{content:'FONCIER';position:absolute;font-family:var(--font-serif);font-size:14rem;font-weight:700;color:rgba(184,151,58,0.04);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;white-space:nowrap;letter-spacing:20px;}
-#processus h2{color:var(--white);}
-#processus .section-intro{color:rgba(255,255,255,0.5);}
-.steps{display:grid;grid-template-columns:repeat(4,1fr);margin-top:4rem;position:relative;}
-.steps::before{content:'';position:absolute;top:40px;left:12.5%;right:12.5%;height:1px;background:linear-gradient(to right,var(--gold),rgba(184,151,58,0.2),var(--gold));}
-.step{padding:0 2rem;text-align:center;}
-.step-num{width:80px;height:80px;background:var(--navy-mid);border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;font-family:var(--font-serif);font-size:1.5rem;color:var(--gold);position:relative;z-index:1;transition:all .3s;}
-.step:hover .step-num{background:var(--gold);color:var(--navy);}
-.step-title{font-family:var(--font-serif);font-size:1.1rem;color:var(--white);margin-bottom:.75rem;}
-.step-text{font-size:.78rem;color:rgba(255,255,255,0.45);line-height:1.8;}
-.conseil-band{background:linear-gradient(135deg,var(--navy-mid),var(--navy));border-top:1px solid rgba(184,151,58,0.15);border-bottom:1px solid rgba(184,151,58,0.15);padding:4rem;}
-.conseil-inner{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:4rem;align-items:center;}
-#confidentiel{background:var(--cream);padding:0;display:grid;grid-template-columns:1fr 1fr;}
-.conf-visual{background:linear-gradient(135deg,rgba(15,30,45,0.88),rgba(15,30,45,0.7)),url('https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=900&q=80') center/cover;padding:7rem 5rem;display:flex;flex-direction:column;justify-content:center;}
-.conf-visual h2{color:var(--white);margin-bottom:1.5rem;}
-.conf-visual .section-intro{color:rgba(255,255,255,0.6);}
-.conf-points{margin-top:2.5rem;display:flex;flex-direction:column;gap:1rem;}
-.conf-point{display:flex;align-items:flex-start;gap:1rem;}
-.conf-point-icon{width:36px;height:36px;flex-shrink:0;background:rgba(184,151,58,0.2);border:1px solid rgba(184,151,58,0.4);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:.9rem;border-radius:2px;}
-.conf-point-text{font-size:.82rem;color:rgba(255,255,255,0.6);line-height:1.7;padding-top:6px;}
-.conf-expertise{background:var(--white);padding:7rem 5rem;display:flex;flex-direction:column;justify-content:center;}
-.expertise-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:2.5rem;}
-.expertise-card{padding:1.5rem;border:1px solid rgba(184,151,58,0.2);border-radius:2px;background:var(--cream);transition:all .3s;}
-.expertise-card:hover{border-color:var(--gold);box-shadow:0 4px 20px rgba(184,151,58,0.1);}
-.expertise-icon{font-size:1.5rem;margin-bottom:.8rem;}
-.expertise-label{font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.4rem;}
-.expertise-desc{font-size:.75rem;color:var(--gray);line-height:1.6;}
-#temoignages{background:var(--white);}
-.temo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:3.5rem;}
-.temo-card{padding:2.5rem;border:1px solid rgba(184,151,58,0.15);position:relative;background:var(--cream);border-radius:2px;}
-.temo-card::before{content:'"';position:absolute;top:1.2rem;left:1.8rem;font-family:var(--font-serif);font-size:4rem;color:rgba(184,151,58,0.2);line-height:1;}
-.temo-text{font-family:var(--font-serif);font-size:1rem;line-height:1.8;color:var(--navy);font-style:italic;margin-bottom:1.5rem;margin-top:1rem;}
-.temo-author{display:flex;gap:12px;align-items:center;}
-.temo-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--gold-pale),var(--gold));display:flex;align-items:center;justify-content:center;font-family:var(--font-serif);font-size:1.1rem;color:var(--navy);font-weight:600;}
-.temo-name{font-size:.82rem;font-weight:600;color:var(--navy);}
-.temo-type{font-size:.72rem;color:var(--gray);}
-.temo-stars{color:var(--gold);font-size:.7rem;letter-spacing:2px;margin-bottom:3px;}
-#remuneration{background:var(--white);}
-.remun-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6rem;align-items:center;}
-#cta-band{background:linear-gradient(135deg,var(--gold) 0%,var(--gold-light) 50%,var(--gold) 100%);padding:5rem 4rem;text-align:center;}
-#cta-band h2{font-family:var(--font-serif);font-size:2.5rem;color:var(--navy);margin-bottom:1rem;}
-#cta-band p{color:rgba(15,30,45,0.7);margin-bottom:2rem;font-size:1rem;}
-.btn-dark{background:var(--navy);color:var(--white);border:none;padding:16px 40px;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:600;cursor:pointer;border-radius:2px;text-decoration:none;display:inline-block;transition:all .3s;}
-.btn-dark:hover{box-shadow:0 8px 30px rgba(15,30,45,0.3);transform:translateY(-2px);}
-footer{background:var(--navy);padding:5rem 4rem 2rem;}
-.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4rem;margin-bottom:4rem;}
-.footer-logo{font-family:var(--font-serif);font-size:1.6rem;color:var(--white);letter-spacing:3px;margin-bottom:.4rem;}
-.footer-logo-sub{font-size:.6rem;color:var(--gold);letter-spacing:4px;text-transform:uppercase;margin-bottom:1.2rem;}
-.footer-desc{font-size:.78rem;color:rgba(255,255,255,0.4);line-height:1.8;max-width:280px;}
-.footer-title{font-size:.65rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:1.2rem;padding-bottom:.6rem;border-bottom:1px solid rgba(184,151,58,0.2);}
-.footer-links{list-style:none;display:flex;flex-direction:column;gap:.6rem;}
-.footer-links a{text-decoration:none;font-size:.78rem;color:rgba(255,255,255,0.45);transition:color .2s;cursor:pointer;}
-.footer-links a:hover{color:var(--gold);}
-.footer-contact-item{display:flex;gap:10px;margin-bottom:.8rem;}
-.footer-contact-icon{color:var(--gold);font-size:.8rem;margin-top:2px;}
-.footer-contact-text{font-size:.78rem;color:rgba(255,255,255,0.45);line-height:1.5;}
-.footer-bottom{border-top:1px solid rgba(184,151,58,0.15);padding-top:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;}
-.footer-copy{font-size:.7rem;color:rgba(255,255,255,0.3);}
-.footer-legal{display:flex;gap:1.5rem;}
-.footer-legal a{font-size:.68rem;color:rgba(255,255,255,0.3);text-decoration:none;cursor:pointer;}
-.carte-page{display:none;min-height:100vh;}
-.carte-page.active{display:block;}
-.carte-wrapper{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 72px);margin-top:72px;}
-.carte-sidebar{background:var(--white);overflow-y:auto;border-right:1px solid rgba(184,151,58,0.2);}
-.sidebar-header{background:var(--navy);padding:2rem 2rem 1.5rem;position:sticky;top:0;z-index:10;}
-.sidebar-header h3{font-family:var(--font-serif);color:var(--white);font-size:1.4rem;margin-bottom:.4rem;}
-.sidebar-header p{font-size:.75rem;color:rgba(255,255,255,0.5);line-height:1.6;}
-.sidebar-body{padding:1.5rem 2rem 2rem;}
-.form-section-title{font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:1rem;margin-top:1.5rem;padding-bottom:.5rem;border-bottom:1px solid rgba(184,151,58,0.2);}
-.form-group{margin-bottom:1.2rem;}
-.form-group label{display:block;font-size:.72rem;letter-spacing:1px;color:var(--gray);margin-bottom:.4rem;text-transform:uppercase;}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1px solid #E0D9CE;background:var(--cream);border-radius:2px;font-family:var(--font-sans);font-size:.85rem;color:var(--navy);transition:border-color .25s;outline:none;}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--gold);background:var(--white);}
-.form-group textarea{min-height:80px;resize:vertical;}
-.projects-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem;}
-.proj-chip{padding:8px 10px;border:1px solid #E0D9CE;border-radius:2px;cursor:pointer;background:var(--cream);font-size:.7rem;color:var(--gray);text-align:center;transition:all .2s;line-height:1.3;}
-.proj-chip:hover{border-color:var(--gold);color:var(--gold);}
-.proj-chip.selected{background:var(--gold);border-color:var(--gold);color:var(--navy);font-weight:600;}
-.proj-chip-icon{font-size:1rem;display:block;margin-bottom:3px;}
-.parcel-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--cream);border:1px solid rgba(184,151,58,0.3);border-radius:2px;margin-bottom:6px;}
-.parcel-ref{font-weight:600;color:var(--navy);font-size:.78rem;}
-.parcel-details{color:var(--gray);font-size:.7rem;}
-.parcel-remove{background:none;border:none;color:#D44;cursor:pointer;font-size:1rem;padding:2px 6px;}
-.parcels-empty{font-size:.78rem;color:var(--gray);font-style:italic;text-align:center;padding:1rem 0;}
-.map-instruction{background:rgba(184,151,58,0.08);border:1px solid rgba(184,151,58,0.25);border-radius:2px;padding:10px 12px;font-size:.75rem;color:var(--navy);line-height:1.5;margin-bottom:1rem;}
-.map-instruction strong{color:var(--gold);}
-.submit-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);border:none;padding:14px;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;cursor:pointer;border-radius:2px;margin-top:1.5rem;transition:all .3s;}
-.submit-btn:hover{box-shadow:0 6px 25px rgba(184,151,58,0.35);transform:translateY(-1px);}
-.map-outer{position:relative;flex:1;min-height:400px;}.desktop-map-section{}.mobile-cadastre-info{display:none;background:rgba(184,151,58,0.08);border:1px solid rgba(184,151,58,0.3);border-radius:4px;padding:14px 16px;font-size:.78rem;color:var(--navy);line-height:1.7;margin-bottom:1rem;}
-#map{position:absolute;inset:0;}
-.map-controls{position:absolute;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;}
-.map-layer-btn{background:var(--white);border:1px solid rgba(184,151,58,0.3);padding:8px 12px;font-size:.7rem;cursor:pointer;border-radius:2px;color:var(--navy);}
-.map-layer-btn.active{background:var(--gold);color:var(--navy);border-color:var(--gold);}
-.map-info-box{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(15,30,45,0.9);color:var(--white);padding:8px 20px;border-radius:2px;font-size:.75rem;border:1px solid rgba(184,151,58,0.3);z-index:500;pointer-events:none;white-space:nowrap;}
-.search-address-bar{position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:500;display:flex;width:340px;box-shadow:0 4px 20px rgba(0,0,0,0.2);}
-.search-address-bar input{flex:1;padding:10px 14px;border:1px solid rgba(184,151,58,0.3);border-right:none;background:var(--white);font-family:var(--font-sans);font-size:.82rem;outline:none;border-radius:2px 0 0 2px;}
-.search-address-bar button{background:var(--gold);border:none;padding:10px 16px;cursor:pointer;color:var(--navy);font-size:.9rem;font-weight:700;border-radius:0 2px 2px 0;}
-.modal-overlay{position:fixed;inset:0;background:rgba(15,30,45,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(6px);}
-.modal-overlay.active{opacity:1;pointer-events:all;}
-.modal-box{background:var(--white);padding:3.5rem;max-width:480px;width:90%;border-radius:2px;border-top:4px solid var(--gold);text-align:center;transform:translateY(20px);transition:transform .3s;}
-.modal-overlay.active .modal-box{transform:translateY(0);}
-.modal-icon{font-size:3rem;margin-bottom:1.2rem;}
-.modal-title{font-family:var(--font-serif);font-size:1.8rem;color:var(--navy);margin-bottom:.8rem;}
-.modal-text{font-size:.85rem;color:var(--gray);line-height:1.8;margin-bottom:2rem;}
-.modal-close{background:var(--navy);color:var(--white);border:none;padding:12px 28px;cursor:pointer;font-family:var(--font-sans);font-size:.72rem;letter-spacing:2px;text-transform:uppercase;border-radius:2px;}
-@keyframes fadeInUp{from{opacity:0;transform:translateY(30px);}to{opacity:1;transform:translateY(0);}}
-@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(8px);}}
-.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease;}
-.reveal.visible{opacity:1;transform:none;}
-@media(max-width:1024px){nav{padding:0 2rem;}.nav-links{display:none;}.hamburger{display:flex;}section{padding:5rem 2rem;}#promesse{grid-template-columns:1fr;}.promesse-divider{display:none;}.steps{grid-template-columns:1fr 1fr;}.steps::before{display:none;}#confidentiel{grid-template-columns:1fr;}.footer-grid{grid-template-columns:1fr 1fr;}.temo-grid{grid-template-columns:1fr;}.remun-grid{grid-template-columns:1fr;gap:2.5rem;}.carte-wrapper{display:flex;flex-direction:column;height:auto;}.map-outer{display:none;}.desktop-map-section{display:none!important;}.mobile-cadastre-info{display:block!important;}.hero-stats{display:none;}.hero-content{padding:0 2rem;padding-top:72px;}.conseil-inner{grid-template-columns:1fr;}.conseil-inner>div:last-child{display:none;}}
-@media(max-width:600px){.steps{grid-template-columns:1fr;}.footer-grid{grid-template-columns:1fr;}.expertise-grid{grid-template-columns:1fr;}h1{font-size:2.2rem;}.search-address-bar{width:calc(100% - 32px);left:16px;transform:none;}}
-</style>
+<meta property="og:url" content="https://foncierstrategie.fr/">
+<meta property="og:title" content="Louer ou vendre son terrain : solaire, agrivoltaïsme, batteries, data center | Foncier Stratégie">
+<meta property="og:description" content="Location et vente de terrains pour centrale solaire, agrivoltaïsme, stockage batterie, data center, éolien, carrière et remblais. Sélectionnez vos parcelles en ligne : étude gratuite, honoraires au succès.">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0F1E2D">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Raleway:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/assets/style.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ProfessionalService","@id":"https://foncierstrategie.fr/#org","name":"Foncier Stratégie","url":"https://foncierstrategie.fr/","email":"contact@foncierstrategie.fr","logo":"https://foncierstrategie.fr/assets/favicon.svg","areaServed":{"@type":"Country","name":"France"},"description":"Cabinet indépendant de valorisation foncière : location et vente de terrains pour centrales solaires, agrivoltaïsme, stockage par batteries, data centers, éolien, carrières, logistique et promotion immobilière, partout en France.","knowsAbout":["Centrale solaire au sol","Agrivoltaïsme","Stockage par batteries (BESS)","Data center","Éolien","Carrière & fortage","Remblais & ISDI","Industrie & logistique","Promotion immobilière","Terres agricoles","Forêts & bois","Friches","Compensation écologique","Antenne relais","Chasse, étangs & tourisme"]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Comment savoir si mon terrain intéresse un développeur solaire, un data center ou un opérateur de batteries ?","acceptedAnswer":{"@type":"Answer","text":"Sélectionnez vos parcelles sur notre carte : nous analysons gratuitement la surface, l'urbanisme, les contraintes environnementales et surtout la distance au réseau électrique, qui est le critère décisif pour la plupart des projets énergétiques et numériques."}},{"@type":"Question","name":"Combien coûte l'accompagnement de Foncier Stratégie ?","acceptedAnswer":{"@type":"Answer","text":"Rien tant que votre terrain n'est pas loué ou vendu. Nos honoraires sont perçus uniquement au succès, selon un taux fixé par écrit avant toute démarche."}},{"@type":"Question","name":"Faut-il une surface minimale ?","acceptedAnswer":{"@type":"Answer","text":"Non. Un parc de batteries ou une antenne relais occupe moins d'un hectare, une centrale solaire en demande généralement au moins 5, un campus data center plusieurs dizaines. Chaque terrain a son projet."}},{"@type":"Question","name":"Intervenez-vous partout en France ?","acceptedAnswer":{"@type":"Answer","text":"Oui, dans tous les départements de métropole et d'outre-mer, pour les particuliers, indivisions, agriculteurs, sociétés et collectivités."}},{"@type":"Question","name":"Mon terrain sera-t-il diffusé publiquement ?","acceptedAnswer":{"@type":"Answer","text":"Non. Votre terrain n'est présenté qu'aux opérateurs sélectionnés, avec votre accord, et n'apparaît sur aucune plateforme d'annonces."}}]},{"@type":"WebSite","@id":"https://foncierstrategie.fr/#site","url":"https://foncierstrategie.fr/","name":"Foncier Stratégie","inLanguage":"fr-FR","publisher":{"@id":"https://foncierstrategie.fr/#org"}}]}</script>
 </head>
 <body>
-<nav>
-  <a href="javascript:void(0)" class="nav-logo" onclick="showMain()">
-    <div class="nav-logo-icon">FS</div>
-    <div class="nav-logo-text"><div class="nav-logo-name">FONCIER STRATÉGIE</div><div class="nav-logo-sub">Conseil & Valorisation</div></div>
-  </a>
-  <ul class="nav-links">
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('typologies')">Valorisations</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('processus')">Notre approche</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('confidentiel')">Expertise</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('remuneration')">Honoraires</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('temoignages')">Références</a></li>
-    <li><a href="javascript:void(0)" style="border:1px solid rgba(184,151,58,0.4);padding:8px 16px;border-radius:2px;" onclick="showRecherche();return false;">Je recherche un bien</a></li>
-    <li><a href="javascript:void(0)" class="nav-cta" onclick="showCarte();return false;">Déposer mon bien</a></li>
-  </ul>
-  <div class="hamburger" id="hamburger" onclick="toggleDrawer()"><span></span><span></span><span></span></div>
-</nav>
-<div class="nav-drawer" id="navDrawer">
-  <ul>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('typologies');toggleDrawer()">Valorisations</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('processus');toggleDrawer()">Notre approche</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('confidentiel');toggleDrawer()">Expertise</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('remuneration');toggleDrawer()">Honoraires</a></li>
-    <li><a href="javascript:void(0)" onclick="showMainAndScroll('temoignages');toggleDrawer()">Références</a></li>
-    <li><a href="javascript:void(0)" onclick="showRecherche();toggleDrawer();return false;" style="color:rgba(184,151,58,0.75)">Je recherche un bien</a></li>
-    <li><a href="javascript:void(0)" onclick="showCarte();toggleDrawer();return false;" style="color:var(--gold)">Déposer mon bien →</a></li>
-  </ul>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="nav">
+  <a href="/" class="nav-logo" aria-label="Foncier Stratégie, accueil"><span class="nav-logo-icon">FS</span><span><span class="nav-logo-name">FONCIER STRATÉGIE</span><span class="nav-logo-sub">Conseil &amp; Valorisation</span></span></a>
+  <nav aria-label="Navigation principale"><ul class="nav-links">
+    <li class="nav-menu"><button type="button" aria-haspopup="true">Solutions</button><ul class="nav-sub"><li><a href="/location-terrain-photovoltaique/">☀️ Centrale solaire au sol</a></li><li><a href="/agrivoltaisme/">🌾 Agrivoltaïsme</a></li><li><a href="/location-terrain-stockage-batterie/">🔋 Stockage par batteries (BESS)</a></li><li><a href="/terrain-data-center/">🖥️ Data center</a></li><li><a href="/location-terrain-eolienne/">🌬️ Éolien</a></li><li><a href="/terrain-carriere-contrat-de-fortage/">⛏️ Carrière &amp; fortage</a></li><li><a href="/terrain-remblais-isdi/">🚛 Remblais &amp; ISDI</a></li><li><a href="/vendre-terrain-logistique-industriel/">🏭 Industrie &amp; logistique</a></li><li><a href="/vendre-terrain-promoteur-immobilier/">🏗️ Promotion immobilière</a></li><li><a href="/vendre-terrain-agricole/">🌱 Terres agricoles</a></li><li><a href="/vendre-foret/">🌲 Forêts &amp; bois</a></li><li><a href="/friche-industrielle/">🏚️ Friches</a></li><li><a href="/compensation-ecologique/">🌳 Compensation écologique</a></li><li><a href="/location-terrain-antenne-relais/">📡 Antenne relais</a></li><li><a href="/domaine-chasse-etang-tourisme/">🦌 Chasse, étangs &amp; tourisme</a></li></ul></li>
+    <li><a href="/valoriser-son-terrain/">Que faire de son terrain&nbsp;?</a></li>
+    <li><a href="/valorisation-fonciere/">Régions</a></li>
+    <li><a href="/#honoraires">Honoraires</a></li>
+    <li><a class="nav-ghost" href="/je-recherche-un-terrain/">Je recherche un terrain</a></li>
+    <li><a class="nav-cta" href="/deposer-mon-terrain/">Déposer mon terrain</a></li>
+  </ul></nav>
+  <button class="hamburger" id="burger" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="drawer"><span></span><span></span><span></span></button>
+</header>
+<div class="nav-drawer" id="drawer">
+  <div class="drawer-cta"><a class="primary" href="/deposer-mon-terrain/">Déposer mon terrain →</a><a href="/je-recherche-un-terrain/">Je recherche un terrain</a></div>
+  <p class="drawer-title">Solutions</p>
+  <ul><li><a href="/location-terrain-photovoltaique/">☀️ Centrale solaire au sol</a></li><li><a href="/agrivoltaisme/">🌾 Agrivoltaïsme</a></li><li><a href="/location-terrain-stockage-batterie/">🔋 Stockage par batteries (BESS)</a></li><li><a href="/terrain-data-center/">🖥️ Data center</a></li><li><a href="/location-terrain-eolienne/">🌬️ Éolien</a></li><li><a href="/terrain-carriere-contrat-de-fortage/">⛏️ Carrière &amp; fortage</a></li><li><a href="/terrain-remblais-isdi/">🚛 Remblais &amp; ISDI</a></li><li><a href="/vendre-terrain-logistique-industriel/">🏭 Industrie &amp; logistique</a></li><li><a href="/vendre-terrain-promoteur-immobilier/">🏗️ Promotion immobilière</a></li><li><a href="/vendre-terrain-agricole/">🌱 Terres agricoles</a></li><li><a href="/vendre-foret/">🌲 Forêts &amp; bois</a></li><li><a href="/friche-industrielle/">🏚️ Friches</a></li><li><a href="/compensation-ecologique/">🌳 Compensation écologique</a></li><li><a href="/location-terrain-antenne-relais/">📡 Antenne relais</a></li><li><a href="/domaine-chasse-etang-tourisme/">🦌 Chasse, étangs &amp; tourisme</a></li></ul>
+  <p class="drawer-title">Guide &amp; territoires</p>
+  <ul><li><a href="/valoriser-son-terrain/">Que faire de son terrain ?</a></li><li><a href="/valorisation-fonciere/">Toutes les régions et départements</a></li><li><a href="/#honoraires">Honoraires</a></li></ul>
 </div>
+<main id="contenu">
 
-<div id="mainSite">
-<section id="hero">
-  <div class="hero-bg"></div><div class="hero-decorline"></div>
+<section class="hero">
+  <div class="hero-bg"></div>
   <div class="hero-content">
-    <div class="hero-badge"><span>Conseil en valorisation foncière</span></div>
-    <h1>Votre foncier recèle<br>une <em>valeur insoupçonnée</em></h1>
-    <p class="hero-sub">Terrains agricoles, forêts, friches industrielles, domaines… Chaque foncier recèle un potentiel que seul un regard d'expert sait révéler. Nous sommes ce regard.</p>
-    <div class="hero-actions">
-      <a href="javascript:void(0)" class="btn-primary" onclick="showCarte();return false;">Déposer mon bien</a>
-      <a href="javascript:void(0)" class="btn-ghost" onclick="showMainAndScroll('processus')">Notre approche</a>
-    </div>
-  </div>
-  <div class="hero-stats">
-    <div class="hero-stat"><div class="hero-stat-num">20+</div><div class="hero-stat-label">Types de projets</div></div>
-    <div class="hero-stat"><div class="hero-stat-num">100%</div><div class="hero-stat-label">Confidentialité</div></div>
-    <div class="hero-stat"><div class="hero-stat-num">15+</div><div class="hero-stat-label">Années d'expertise</div></div>
-  </div>
-  <div class="hero-scroll">Découvrir</div>
-</section>
-
-<div id="promesse">
-  <div class="promesse-item reveal"><div class="promesse-icon">🔒</div><div class="promesse-title">Confidentialité absolue</div><div class="promesse-text">Votre parcelle n'apparaît sur aucune plateforme. Seuls les acquéreurs pré-qualifiés liés par accord de confidentialité sont informés — sauf si vous le souhaitez pour maximiser vos chances.</div></div>
-  <div class="promesse-divider"></div>
-  <div class="promesse-item reveal"><div class="promesse-icon">⚖️</div><div class="promesse-title">Expertise juridique & notariée</div><div class="promesse-text">Nos experts maîtrisent les spécificités du droit foncier, rural et de l'urbanisme. Chaque dossier est structuré pour être solide, équilibré et sans mauvaise surprise.</div></div>
-  <div class="promesse-divider"></div>
-  <div class="promesse-item reveal"><div class="promesse-icon">🎯</div><div class="promesse-title">Mise en relation ciblée</div><div class="promesse-text">Nous activons un réseau d'entreprises, d'investisseurs et d'opérateurs spécialisés constitué au fil de 15 ans de transactions. Pas d'appels d'offres publics.</div></div>
-</div>
-
-<section id="typologies">
-  <div class="typo-header reveal">
-    <div><div class="section-label"><span>Ce que nous valorisons</span></div><h2>Chaque terrain<br>mérite son <em>projet idéal</em></h2></div>
-    <p class="section-intro" style="max-width:360px">Du projet solaire à la promotion immobilière, de la forêt au data center, nous explorons toutes les pistes.</p>
-  </div>
-  <div class="typo-grid reveal">
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#D4A017,#8B5E0A)"><div class="typo-card-icon">☀️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Énergie renouvelable</div><div class="typo-card-title">Projet solaire &<br>agrivoltaïque</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#4A90D9,#1A4A7A)"><div class="typo-card-icon">🌬️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Énergie renouvelable</div><div class="typo-card-title">Projet éolien</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#6B7B8D,#2C3E50)"><div class="typo-card-icon">🏗️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Immobilier</div><div class="typo-card-title">Promotion immobilière</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#5D6D7E,#1C2833)"><div class="typo-card-icon">🏭</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Industrie</div><div class="typo-card-title">Projet industriel & entrepôt</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#5D8A3C,#2D5A1B)"><div class="typo-card-icon">🌾</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Agriculture</div><div class="typo-card-title">Terres agricoles & forêts</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#1A2980,#26D0CE)"><div class="typo-card-icon">🖥️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Technologie</div><div class="typo-card-title">Data center & batteries</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#8B5E3C,#4A2C0A)"><div class="typo-card-icon">🏰</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Tourisme</div><div class="typo-card-title">Domaine & projet touristique</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#2E7D32,#1B5E20)"><div class="typo-card-icon">🌿</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Environnement</div><div class="typo-card-title">Compensations & friches</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#795548,#3E2723)"><div class="typo-card-icon">⛏️</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Ressources naturelles</div><div class="typo-card-title">Carrière, sablière & remblais</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#33691E,#1B5E20)"><div class="typo-card-icon">🦌</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Chasse & nature</div><div class="typo-card-title">Territoire de chasse & étang</div></div></div>
-    <div class="typo-card" onclick="showCarte()"><div class="typo-card-img" style="background:linear-gradient(145deg,#0D47A1,#1565C0)"><div class="typo-card-icon">📡</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Télécommunications</div><div class="typo-card-title">Bail antenne téléphonique</div></div></div>
-    <div class="typo-card" onclick="showCarte()" style="background:#0F1E2D"><div class="typo-card-img" style="background:linear-gradient(145deg,#0F1E2D,#243E57)"><div class="typo-card-icon">💡</div></div><div class="typo-card-arrow">→</div><div class="typo-card-content"><div class="typo-card-cat">Et bien plus encore…</div><div class="typo-card-title">Votre projet<br>n'est pas listé ?</div></div></div>
+    <div class="badge">Valorisation foncière · toute la France</div>
+    <h1>Louez ou vendez votre terrain pour <em>le solaire, l'agrivoltaïsme, les batteries, un data center ou une carrière</em></h1>
+    <p class="hero-sub">Foncier Stratégie présente votre terrain aux développeurs et opérateurs qui le recherchent, fait jouer la concurrence et vous accompagne jusqu'à la signature chez le notaire. Sélectionnez vos parcelles en 2 minutes, depuis votre ordinateur ou votre téléphone.</p>
+    <div class="actions"><a class="btn btn-primary" href="/deposer-mon-terrain/">Sélectionner mes parcelles</a><a class="btn btn-ghost" href="#solutions">Voir les solutions</a></div>
+    <ul class="hero-points"><li>Étude gratuite</li><li>Réponse sous 48 h ouvrées</li><li>Honoraires au succès uniquement</li><li>100 % confidentiel</li></ul>
   </div>
 </section>
 
-<section id="processus">
-  <div class="reveal" style="text-align:center;max-width:700px;margin:0 auto">
-    <div class="section-label" style="justify-content:center"><span>Notre méthode</span></div>
-    <h2 style="color:var(--white)">Un accompagnement<br><em>de A à Z</em></h2>
-    <p class="section-intro" style="margin:1.2rem auto 0;text-align:center;color:rgba(255,255,255,0.5)">Ni agence, ni chasseur généraliste. Notre méthode est structurée et entièrement pilotée par nos équipes.</p>
-  </div>
-  <div class="steps reveal">
-    <div class="step"><div class="step-num">01</div><div class="step-title">Analyse & diagnostic</div><div class="step-text">Étude de votre foncier : localisation, PLU, servitudes, potentiel réglementaire et identification des projets envisageables.</div></div>
-    <div class="step"><div class="step-num">02</div><div class="step-title">Dossier de présentation</div><div class="step-text">Avec votre accord, nous constituons un dossier confidentiel pour le soumettre à des acquéreurs ciblés.</div></div>
-    <div class="step"><div class="step-num">03</div><div class="step-title">Mise en relation sélective</div><div class="step-text">Sélection rigoureuse parmi notre réseau. Seuls les profils les plus pertinents vous sont présentés.</div></div>
-    <div class="step"><div class="step-num">04</div><div class="step-title">Transaction sécurisée</div><div class="step-text">Accompagnement juridique et notarial jusqu'à la promesse de vente ou de bail.</div></div>
+<section class="section" id="solutions">
+  <div class="wrap">
+    <div class="reveal"><div class="label">Ce que nous valorisons</div><h2>Chaque terrain a <em>son projet idéal</em></h2>
+    <p class="intro">Centrale photovoltaïque au sol, agrivoltaïsme, stockage d'énergie, data center, éolien, carrière, remblais, logistique, promotion immobilière, forêt, compensation écologique… Un même terrain peut valoir trois fois plus pour un opérateur que pour un autre : nous trouvons celui pour qui il a le plus de valeur.</p></div>
+    <div class="cards reveal"><a class="card" href="/location-terrain-photovoltaique/"><span class="card-bg" style="background:linear-gradient(145deg,#D4A017,#8B5E0A)"><span aria-hidden="true">☀️</span></span><span class="card-txt"><span class="card-cat">Énergie solaire</span><span class="card-title">Centrale solaire au sol</span><span class="card-desc">Louer son terrain pour une centrale photovoltaïque</span></span></a><a class="card" href="/agrivoltaisme/"><span class="card-bg" style="background:linear-gradient(145deg,#8FA33A,#4E6A1B)"><span aria-hidden="true">🌾</span></span><span class="card-txt"><span class="card-cat">Agriculture &amp; énergie</span><span class="card-title">Agrivoltaïsme</span><span class="card-desc">Projet agrivoltaïque sur terres agricoles</span></span></a><a class="card" href="/location-terrain-stockage-batterie/"><span class="card-bg" style="background:linear-gradient(145deg,#2E8B57,#0B3D2E)"><span aria-hidden="true">🔋</span></span><span class="card-txt"><span class="card-cat">Stockage d'énergie</span><span class="card-title">Stockage par batteries (BESS)</span><span class="card-desc">Louer un terrain pour un parc de batteries</span></span></a><a class="card" href="/terrain-data-center/"><span class="card-bg" style="background:linear-gradient(145deg,#1A2980,#26D0CE)"><span aria-hidden="true">🖥️</span></span><span class="card-txt"><span class="card-cat">Numérique</span><span class="card-title">Data center</span><span class="card-desc">Vendre ou louer un terrain pour un data center</span></span></a><a class="card" href="/location-terrain-eolienne/"><span class="card-bg" style="background:linear-gradient(145deg,#4A90D9,#1A4A7A)"><span aria-hidden="true">🌬️</span></span><span class="card-txt"><span class="card-cat">Énergie éolienne</span><span class="card-title">Éolien</span><span class="card-desc">Louer son terrain pour une éolienne</span></span></a><a class="card" href="/terrain-carriere-contrat-de-fortage/"><span class="card-bg" style="background:linear-gradient(145deg,#795548,#3E2723)"><span aria-hidden="true">⛏️</span></span><span class="card-txt"><span class="card-cat">Ressources du sous-sol</span><span class="card-title">Carrière &amp; fortage</span><span class="card-desc">Valoriser un gisement : carrière, sablière, contrat de fortage</span></span></a><a class="card" href="/terrain-remblais-isdi/"><span class="card-bg" style="background:linear-gradient(145deg,#A1887F,#4E342E)"><span aria-hidden="true">🚛</span></span><span class="card-txt"><span class="card-cat">Travaux publics</span><span class="card-title">Remblais &amp; ISDI</span><span class="card-desc">Accueillir des terres de remblai ou une ISDI</span></span></a><a class="card" href="/vendre-terrain-logistique-industriel/"><span class="card-bg" style="background:linear-gradient(145deg,#5D6D7E,#1C2833)"><span aria-hidden="true">🏭</span></span><span class="card-txt"><span class="card-cat">Industrie &amp; logistique</span><span class="card-title">Industrie &amp; logistique</span><span class="card-desc">Vendre un terrain à un industriel ou un logisticien</span></span></a><a class="card" href="/vendre-terrain-promoteur-immobilier/"><span class="card-bg" style="background:linear-gradient(145deg,#6B7B8D,#2C3E50)"><span aria-hidden="true">🏗️</span></span><span class="card-txt"><span class="card-cat">Immobilier</span><span class="card-title">Promotion immobilière</span><span class="card-desc">Vendre un terrain constructible à un promoteur</span></span></a><a class="card" href="/vendre-terrain-agricole/"><span class="card-bg" style="background:linear-gradient(145deg,#5D8A3C,#2D5A1B)"><span aria-hidden="true">🌱</span></span><span class="card-txt"><span class="card-cat">Agriculture</span><span class="card-title">Terres agricoles</span><span class="card-desc">Vendre ou valoriser des terres agricoles</span></span></a><a class="card" href="/vendre-foret/"><span class="card-bg" style="background:linear-gradient(145deg,#2E7D32,#123D14)"><span aria-hidden="true">🌲</span></span><span class="card-txt"><span class="card-cat">Forêt</span><span class="card-title">Forêts &amp; bois</span><span class="card-desc">Vendre ou valoriser une forêt</span></span></a><a class="card" href="/friche-industrielle/"><span class="card-bg" style="background:linear-gradient(145deg,#8D6E63,#37474F)"><span aria-hidden="true">🏚️</span></span><span class="card-txt"><span class="card-cat">Reconversion</span><span class="card-title">Friches</span><span class="card-desc">Vendre ou reconvertir une friche industrielle</span></span></a><a class="card" href="/compensation-ecologique/"><span class="card-bg" style="background:linear-gradient(145deg,#43A047,#1B5E20)"><span aria-hidden="true">🌳</span></span><span class="card-txt"><span class="card-cat">Environnement</span><span class="card-title">Compensation écologique</span><span class="card-desc">Valoriser un terrain en compensation écologique</span></span></a><a class="card" href="/location-terrain-antenne-relais/"><span class="card-bg" style="background:linear-gradient(145deg,#0D47A1,#1565C0)"><span aria-hidden="true">📡</span></span><span class="card-txt"><span class="card-cat">Télécommunications</span><span class="card-title">Antenne relais</span><span class="card-desc">Louer un emplacement pour une antenne relais</span></span></a><a class="card" href="/domaine-chasse-etang-tourisme/"><span class="card-bg" style="background:linear-gradient(145deg,#33691E,#1B3A0E)"><span aria-hidden="true">🦌</span></span><span class="card-txt"><span class="card-cat">Nature &amp; loisirs</span><span class="card-title">Chasse, étangs &amp; tourisme</span><span class="card-desc">Territoire de chasse, étang, domaine touristique</span></span></a></div>
   </div>
 </section>
 
-<div class="conseil-band">
-  <div class="conseil-inner reveal">
-    <div>
-      <div style="font-size:.62rem;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:1.2rem;font-weight:600">Conseil & Estimation</div>
-      <h2 style="color:var(--white)">Quelle valeur a vraiment<br><em>votre bien aujourd'hui ?</em></h2>
-      <p class="section-intro" style="color:rgba(255,255,255,0.55);margin-top:1.2rem">La valeur d'un terrain varie considérablement selon <strong style="color:rgba(255,255,255,0.8)">l'opportunité qui se présente</strong>. Un même terrain peut valoir trois fois plus pour un développeur solaire que pour un promoteur immobilier. <strong style="color:rgba(255,255,255,0.8)">C'est notre métier que de vous l'expliquer.</strong></p>
+<section class="section white">
+  <div class="wrap tool">
+    <div class="tool-visual reveal" aria-hidden="true">
+      <svg viewBox="0 0 400 300" preserveAspectRatio="none"><g fill="none" stroke="#FFB347" stroke-width="1.5"><path d="M0 60 L140 40 L170 150 L10 180Z"/><path d="M140 40 L300 20 L320 120 L170 150Z"/><path d="M300 20 L400 10 L400 110 L320 120Z"/><path d="M10 180 L170 150 L190 300 L0 300Z"/><path d="M170 150 L320 120 L350 300 L190 300Z"/><path d="M320 120 L400 110 L400 300 L350 300Z"/></g><path d="M170 150 L320 120 L350 300 L190 300Z" fill="rgba(212,175,87,.6)" stroke="#fff" stroke-width="3"/><path d="M140 40 L300 20 L320 120 L170 150Z" fill="rgba(212,175,87,.6)" stroke="#fff" stroke-width="3"/></svg>
+      <div class="tool-chip"><strong>2 parcelles sélectionnées</strong>Superficie totale : 8,4 ha</div>
     </div>
-    <div style="text-align:center;min-width:200px">
-      <div style="width:120px;height:120px;margin:0 auto 1.2rem;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.35);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:3rem">💡</div>
-      <div style="font-family:var(--font-serif);font-size:1rem;color:var(--white);margin-bottom:.5rem">Consultation gratuite</div>
-      <div style="font-size:.72rem;color:rgba(255,255,255,0.4);line-height:1.6;margin-bottom:1.2rem">Premier avis éclairé, sans engagement.</div>
-      <a href="javascript:void(0)" onclick="showCarte()" style="display:inline-block;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);padding:11px 22px;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;border-radius:2px;text-decoration:none">Nous consulter →</a>
-    </div>
-  </div>
-</div>
-
-<section id="confidentiel" style="padding:0">
-  <div class="conf-visual reveal">
-    <div class="section-label"><span>Notre engagement</span></div>
-    <h2>La discrétion comme<br><em>principe fondateur</em></h2>
-    <p class="section-intro">Dans le foncier, la discrétion n'est pas un service optionnel. Révéler trop tôt l'existence d'un bien peut en réduire la valeur.</p>
-    <div class="conf-points">
-      <div class="conf-point"><div class="conf-point-icon">🗺</div><p class="conf-point-text">Votre bien n'entre jamais dans une base de données commerciale — sauf si vous le souhaitez pour maximiser vos chances.</p></div>
-      <div class="conf-point"><div class="conf-point-icon">🤝</div><p class="conf-point-text">Présentation uniquement à des acquéreurs pré-qualifiés engagés par accord de confidentialité.</p></div>
-      <div class="conf-point"><div class="conf-point-icon">📋</div><p class="conf-point-text">Dossier de présentation établi avec votre accord et revu avant toute diffusion dans notre réseau.</p></div>
-      <div class="conf-point"><div class="conf-point-icon">⚖️</div><p class="conf-point-text">Un notaire partenaire intervient dès la phase de négociation pour sécuriser les termes avant toute signature.</p></div>
-    </div>
-  </div>
-  <div class="conf-expertise reveal">
-    <div class="section-label"><span>Notre expertise</span></div>
-    <h2>Une équipe de<br><em>spécialistes</em> reconnus</h2>
-    <p class="section-intro">Chaque dossier est traité par le spécialiste compétent — jamais un généraliste seul face à un sujet complexe.</p>
-    <div class="expertise-grid">
-      <div class="expertise-card"><div class="expertise-icon">☀️</div><div class="expertise-label">Énergies renouvelables</div><div class="expertise-desc">Photovoltaïque, agrivoltaïque, éolien : maîtrise des réglementations et des acteurs.</div></div>
-      <div class="expertise-card"><div class="expertise-icon">🏗️</div><div class="expertise-label">Promotion & Industrie</div><div class="expertise-desc">Évaluation du potentiel constructible, contact avec promoteurs et industriels.</div></div>
-      <div class="expertise-card"><div class="expertise-icon">🌿</div><div class="expertise-label">Environnement & Agriculture</div><div class="expertise-desc">Compensations écologiques, forêts, terres agricoles, terrains dégradés.</div></div>
-      <div class="expertise-card"><div class="expertise-icon">⚖️</div><div class="expertise-label">Droit foncier & Notariat</div><div class="expertise-desc">Accompagnement juridique de la négociation à la signature de l'acte authentique.</div></div>
+    <div class="reveal">
+      <div class="label">Nouveau · Outil cartographique</div>
+      <h2>Sélectionnez vos parcelles <em>en 2 minutes</em></h2>
+      <p class="intro">Notre carte utilise le cadastre officiel et les photos aériennes de l'IGN. Elle fonctionne aussi bien sur ordinateur que sur téléphone, même depuis votre champ.</p>
+      <ul class="checks"><li>Recherchez une adresse, une commune ou utilisez votre position</li><li>Touchez vos parcelles : surface et références cadastrales s'affichent</li><li>Validez, précisez votre projet : c'est envoyé</li></ul>
+      <div class="actions" style="margin-top:2rem"><a class="btn btn-primary" href="/deposer-mon-terrain/">Ouvrir la carte</a></div>
     </div>
   </div>
 </section>
 
-<section id="temoignages">
-  <div class="reveal" style="text-align:center;max-width:600px;margin:0 auto 3.5rem">
-    <div class="section-label" style="justify-content:center"><span>Ils nous ont fait confiance</span></div>
-    <h2>Des propriétaires<br><em>satisfaits</em> témoignent</h2>
-  </div>
-  <div class="temo-grid reveal">
-    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">Foncier Stratégie a identifié un potentiel solaire sur mes terres agricoles que je n'aurais jamais imaginé. Tout s'est fait dans une discrétion totale, et j'ai signé un bail de 30 ans très avantageux.</p><div class="temo-author"><div class="temo-avatar">JM</div><div><div class="temo-name">Jean-Marc T.</div><div class="temo-type">Agriculteur — Charente, 85 ha</div></div></div></div>
-    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">J'héritais d'une friche industrielle que je ne savais pas comment valoriser. L'équipe m'a expliqué les prérequis, trouvé un promoteur sérieux et accompagné jusqu'à la promesse de vente.</p><div class="temo-author"><div class="temo-avatar">SB</div><div><div class="temo-name">Sophie B.</div><div class="temo-type">Propriétaire privée — Oise, 4 ha</div></div></div></div>
-    <div class="temo-card"><div class="temo-stars">★★★★★</div><p class="temo-text">Notre commune disposait d'une carrière désaffectée. Foncier Stratégie a su trouver un opérateur pour un projet de data center. Un dossier complexe géré avec une vraie expertise juridique.</p><div class="temo-author"><div class="temo-avatar">MC</div><div><div class="temo-name">Michel C.</div><div class="temo-type">Maire — Communauté de communes, 12 ha</div></div></div></div>
-  </div>
-</section>
-
-<section id="remuneration">
-  <div class="remun-grid reveal">
-    <div>
-      <div class="section-label"><span>Notre rémunération</span></div>
-      <h2>Honoraires<br>au <em>succès uniquement</em></h2>
-      <p class="section-intro">Nous ne percevons aucun honoraire tant que votre bien n'est pas valorisé.</p>
-      <div style="margin-top:2.5rem;display:flex;flex-direction:column;gap:1.2rem">
-        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">🎯</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Zéro frais avant la transaction</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Aucun abonnement, aucun frais de dossier, aucune avance.</div></div></div>
-        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">📈</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Indexé sur la valeur créée</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Honoraires calculés en pourcentage du prix de vente ou de la valeur capitalisée du bail.</div></div></div>
-        <div style="display:flex;align-items:flex-start;gap:1rem"><div style="width:40px;height:40px;flex-shrink:0;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.3);border-radius:2px;display:flex;align-items:center;justify-content:center">🤝</div><div><div style="font-family:var(--font-serif);font-size:1rem;color:var(--navy);margin-bottom:.3rem">Intérêts parfaitement alignés</div><div style="font-size:.78rem;color:var(--gray);line-height:1.7">Nous n'avons aucun intérêt à précipiter une vente ou accepter un acquéreur sous-qualifié.</div></div></div>
-      </div>
-    </div>
-    <div>
-      <div style="background:var(--navy);border-radius:2px;padding:3rem;position:relative;overflow:hidden">
-        <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:rgba(184,151,58,0.06);pointer-events:none"></div>
-        <div style="font-size:.62rem;letter-spacing:3px;text-transform:uppercase;color:var(--gold);margin-bottom:1.5rem">Le principe en clair</div>
-        <p style="font-family:var(--font-serif);font-size:1.6rem;color:var(--white);line-height:1.3;margin-bottom:1.8rem">Si nous ne créons pas de valeur pour vous,<br><em style="color:var(--gold-light)">nous ne sommes pas rémunérés.</em></p>
-        <div style="border-top:1px solid rgba(184,151,58,0.2);padding-top:1.5rem">
-          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Frais d'entrée</span><span style="font-family:var(--font-serif);color:var(--gold)">0 €</span></div>
-          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Frais de dossier</span><span style="font-family:var(--font-serif);color:var(--gold)">0 €</span></div>
-          <div style="display:flex;justify-content:space-between;padding:.6rem 0;border-bottom:1px solid rgba(184,151,58,0.1)"><span style="font-size:.75rem;color:rgba(255,255,255,0.5)">Honoraires</span><span style="font-family:var(--font-serif);color:var(--gold)">Au succès uniquement</span></div>
-          <div style="display:flex;justify-content:space-between;padding-top:1rem"><span style="font-size:.75rem;color:rgba(255,255,255,0.7);font-weight:600">Votre risque financier</span><span style="font-family:var(--font-serif);font-size:1.3rem;color:var(--white);font-weight:600">Nul</span></div>
-        </div>
-        <div style="margin-top:1.5rem;background:rgba(184,151,58,0.1);border:1px solid rgba(184,151,58,0.25);border-radius:2px;padding:1rem 1.2rem;font-size:.75rem;color:rgba(255,255,255,0.55);line-height:1.7">Le taux d'honoraires est défini contractuellement avant toute démarche, en toute transparence.</div>
-      </div>
+<section class="section dark">
+  <div class="wrap">
+    <div class="reveal" style="text-align:center;max-width:720px;margin:0 auto"><div class="label" style="justify-content:center">Notre méthode</div><h2>Un accompagnement <em>de A à Z</em></h2><p class="intro" style="margin:1rem auto 0">Ni agence immobilière, ni plateforme d'annonces : un cabinet qui connaît les attentes de chaque type d'opérateur et défend vos intérêts.</p></div>
+    <div class="steps reveal">
+      <div class="step"><div class="step-num">01</div><h3>Analyse gratuite</h3><p>Urbanisme, servitudes, environnement, réseau électrique : nous identifions les projets réalistes sur votre terrain.</p></div>
+      <div class="step"><div class="step-num">02</div><h3>Dossier confidentiel</h3><p>Avec votre accord, nous préparons une présentation de votre foncier adaptée à chaque type d'opérateur.</p></div>
+      <div class="step"><div class="step-num">03</div><h3>Mise en concurrence</h3><p>Nous consultons plusieurs développeurs, opérateurs ou acquéreurs qualifiés et comparons loyers et clauses.</p></div>
+      <div class="step"><div class="step-num">04</div><h3>Signature sécurisée</h3><p>Promesse de bail ou de vente relue avec un notaire partenaire, jusqu'à l'acte définitif.</p></div>
     </div>
   </div>
 </section>
 
-<div id="cta-band">
-  <h2>Votre terrain vaut plus<br>que vous ne le pensez</h2>
-  <p>Entrez dans notre base de données et laissez-nous penser à vous au bon moment.</p>
-  <a href="javascript:void(0)" class="btn-dark" onclick="showCarte();return false;">Déposer mon bien gratuitement</a>
-</div>
+<section class="section white" id="honoraires">
+  <div class="wrap fees">
+    <div class="reveal">
+      <div class="label">Notre rémunération</div>
+      <h2>Honoraires <em>au succès uniquement</em></h2>
+      <p class="intro">Nous ne percevons rien tant que votre terrain n'est pas loué ou vendu. Nos honoraires sont calculés en pourcentage du prix de vente ou de la valeur du bail, selon un taux fixé par écrit avant toute démarche.</p>
+      <ul class="checks"><li>Aucun frais d'entrée, aucun frais de dossier</li><li>Des intérêts alignés sur les vôtres : obtenir le meilleur prix</li><li>Aucun intérêt à précipiter une signature</li></ul>
+    </div>
+    <div class="fee-box reveal">
+      <p style="font-family:var(--serif);font-size:1.6rem;color:#fff;line-height:1.3;margin-bottom:1.4rem">Si nous ne créons pas de valeur pour vous, <em style="color:var(--gold-light)">nous ne sommes pas rémunérés.</em></p>
+      <div class="fee-row"><span>Étude du terrain</span><b>0 €</b></div>
+      <div class="fee-row"><span>Frais de dossier</span><b>0 €</b></div>
+      <div class="fee-row"><span>Honoraires</span><b>Au succès</b></div>
+      <div class="fee-row" style="border:0"><span style="color:#fff;font-weight:700">Votre risque financier</span><b style="color:#fff">Nul</b></div>
+    </div>
+  </div>
+</section>
 
-<footer>
+<section class="section" id="regions">
+  <div class="wrap">
+    <div class="label">Partout en France</div>
+    <h2>Nous valorisons votre terrain <em>dans toutes les régions</em></h2>
+    <ul class="pills"><li><a href="/valorisation-fonciere/ile-de-france/">Île-de-France</a></li><li><a href="/valorisation-fonciere/centre-val-de-loire/">Centre-Val de Loire</a></li><li><a href="/valorisation-fonciere/bourgogne-franche-comte/">Bourgogne-Franche-Comté</a></li><li><a href="/valorisation-fonciere/normandie/">Normandie</a></li><li><a href="/valorisation-fonciere/hauts-de-france/">Hauts-de-France</a></li><li><a href="/valorisation-fonciere/grand-est/">Grand Est</a></li><li><a href="/valorisation-fonciere/pays-de-la-loire/">Pays de la Loire</a></li><li><a href="/valorisation-fonciere/bretagne/">Bretagne</a></li><li><a href="/valorisation-fonciere/nouvelle-aquitaine/">Nouvelle-Aquitaine</a></li><li><a href="/valorisation-fonciere/occitanie/">Occitanie</a></li><li><a href="/valorisation-fonciere/auvergne-rhone-alpes/">Auvergne-Rhône-Alpes</a></li><li><a href="/valorisation-fonciere/provence-alpes-cote-d-azur/">Provence-Alpes-Côte d'Azur</a></li><li><a href="/valorisation-fonciere/corse/">Corse</a></li><li><a href="/valorisation-fonciere/guadeloupe/">Guadeloupe</a></li><li><a href="/valorisation-fonciere/martinique/">Martinique</a></li><li><a href="/valorisation-fonciere/guyane/">Guyane</a></li><li><a href="/valorisation-fonciere/la-reunion/">La Réunion</a></li><li><a href="/valorisation-fonciere/mayotte/">Mayotte</a></li></ul>
+    <h3 style="font-family:var(--serif);font-size:1.4rem;color:var(--navy);margin-top:2.5rem">Tous les départements</h3>
+    <ul class="cols"><li><a href="/valorisation-fonciere/ain-01/"><span class="num">01</span>Ain</a></li><li><a href="/valorisation-fonciere/aisne-02/"><span class="num">02</span>Aisne</a></li><li><a href="/valorisation-fonciere/allier-03/"><span class="num">03</span>Allier</a></li><li><a href="/valorisation-fonciere/alpes-de-haute-provence-04/"><span class="num">04</span>Alpes-de-Haute-Provence</a></li><li><a href="/valorisation-fonciere/hautes-alpes-05/"><span class="num">05</span>Hautes-Alpes</a></li><li><a href="/valorisation-fonciere/alpes-maritimes-06/"><span class="num">06</span>Alpes-Maritimes</a></li><li><a href="/valorisation-fonciere/ardeche-07/"><span class="num">07</span>Ardèche</a></li><li><a href="/valorisation-fonciere/ardennes-08/"><span class="num">08</span>Ardennes</a></li><li><a href="/valorisation-fonciere/ariege-09/"><span class="num">09</span>Ariège</a></li><li><a href="/valorisation-fonciere/aube-10/"><span class="num">10</span>Aube</a></li><li><a href="/valorisation-fonciere/aude-11/"><span class="num">11</span>Aude</a></li><li><a href="/valorisation-fonciere/aveyron-12/"><span class="num">12</span>Aveyron</a></li><li><a href="/valorisation-fonciere/bouches-du-rhone-13/"><span class="num">13</span>Bouches-du-Rhône</a></li><li><a href="/valorisation-fonciere/calvados-14/"><span class="num">14</span>Calvados</a></li><li><a href="/valorisation-fonciere/cantal-15/"><span class="num">15</span>Cantal</a></li><li><a href="/valorisation-fonciere/charente-16/"><span class="num">16</span>Charente</a></li><li><a href="/valorisation-fonciere/charente-maritime-17/"><span class="num">17</span>Charente-Maritime</a></li><li><a href="/valorisation-fonciere/cher-18/"><span class="num">18</span>Cher</a></li><li><a href="/valorisation-fonciere/correze-19/"><span class="num">19</span>Corrèze</a></li><li><a href="/valorisation-fonciere/cote-d-or-21/"><span class="num">21</span>Côte-d'Or</a></li><li><a href="/valorisation-fonciere/cotes-d-armor-22/"><span class="num">22</span>Côtes-d'Armor</a></li><li><a href="/valorisation-fonciere/creuse-23/"><span class="num">23</span>Creuse</a></li><li><a href="/valorisation-fonciere/dordogne-24/"><span class="num">24</span>Dordogne</a></li><li><a href="/valorisation-fonciere/doubs-25/"><span class="num">25</span>Doubs</a></li><li><a href="/valorisation-fonciere/drome-26/"><span class="num">26</span>Drôme</a></li><li><a href="/valorisation-fonciere/eure-27/"><span class="num">27</span>Eure</a></li><li><a href="/valorisation-fonciere/eure-et-loir-28/"><span class="num">28</span>Eure-et-Loir</a></li><li><a href="/valorisation-fonciere/finistere-29/"><span class="num">29</span>Finistère</a></li><li><a href="/valorisation-fonciere/corse-du-sud-2a/"><span class="num">2A</span>Corse-du-Sud</a></li><li><a href="/valorisation-fonciere/haute-corse-2b/"><span class="num">2B</span>Haute-Corse</a></li><li><a href="/valorisation-fonciere/gard-30/"><span class="num">30</span>Gard</a></li><li><a href="/valorisation-fonciere/haute-garonne-31/"><span class="num">31</span>Haute-Garonne</a></li><li><a href="/valorisation-fonciere/gers-32/"><span class="num">32</span>Gers</a></li><li><a href="/valorisation-fonciere/gironde-33/"><span class="num">33</span>Gironde</a></li><li><a href="/valorisation-fonciere/herault-34/"><span class="num">34</span>Hérault</a></li><li><a href="/valorisation-fonciere/ille-et-vilaine-35/"><span class="num">35</span>Ille-et-Vilaine</a></li><li><a href="/valorisation-fonciere/indre-36/"><span class="num">36</span>Indre</a></li><li><a href="/valorisation-fonciere/indre-et-loire-37/"><span class="num">37</span>Indre-et-Loire</a></li><li><a href="/valorisation-fonciere/isere-38/"><span class="num">38</span>Isère</a></li><li><a href="/valorisation-fonciere/jura-39/"><span class="num">39</span>Jura</a></li><li><a href="/valorisation-fonciere/landes-40/"><span class="num">40</span>Landes</a></li><li><a href="/valorisation-fonciere/loir-et-cher-41/"><span class="num">41</span>Loir-et-Cher</a></li><li><a href="/valorisation-fonciere/loire-42/"><span class="num">42</span>Loire</a></li><li><a href="/valorisation-fonciere/haute-loire-43/"><span class="num">43</span>Haute-Loire</a></li><li><a href="/valorisation-fonciere/loire-atlantique-44/"><span class="num">44</span>Loire-Atlantique</a></li><li><a href="/valorisation-fonciere/loiret-45/"><span class="num">45</span>Loiret</a></li><li><a href="/valorisation-fonciere/lot-46/"><span class="num">46</span>Lot</a></li><li><a href="/valorisation-fonciere/lot-et-garonne-47/"><span class="num">47</span>Lot-et-Garonne</a></li><li><a href="/valorisation-fonciere/lozere-48/"><span class="num">48</span>Lozère</a></li><li><a href="/valorisation-fonciere/maine-et-loire-49/"><span class="num">49</span>Maine-et-Loire</a></li><li><a href="/valorisation-fonciere/manche-50/"><span class="num">50</span>Manche</a></li><li><a href="/valorisation-fonciere/marne-51/"><span class="num">51</span>Marne</a></li><li><a href="/valorisation-fonciere/haute-marne-52/"><span class="num">52</span>Haute-Marne</a></li><li><a href="/valorisation-fonciere/mayenne-53/"><span class="num">53</span>Mayenne</a></li><li><a href="/valorisation-fonciere/meurthe-et-moselle-54/"><span class="num">54</span>Meurthe-et-Moselle</a></li><li><a href="/valorisation-fonciere/meuse-55/"><span class="num">55</span>Meuse</a></li><li><a href="/valorisation-fonciere/morbihan-56/"><span class="num">56</span>Morbihan</a></li><li><a href="/valorisation-fonciere/moselle-57/"><span class="num">57</span>Moselle</a></li><li><a href="/valorisation-fonciere/nievre-58/"><span class="num">58</span>Nièvre</a></li><li><a href="/valorisation-fonciere/nord-59/"><span class="num">59</span>Nord</a></li><li><a href="/valorisation-fonciere/oise-60/"><span class="num">60</span>Oise</a></li><li><a href="/valorisation-fonciere/orne-61/"><span class="num">61</span>Orne</a></li><li><a href="/valorisation-fonciere/pas-de-calais-62/"><span class="num">62</span>Pas-de-Calais</a></li><li><a href="/valorisation-fonciere/puy-de-dome-63/"><span class="num">63</span>Puy-de-Dôme</a></li><li><a href="/valorisation-fonciere/pyrenees-atlantiques-64/"><span class="num">64</span>Pyrénées-Atlantiques</a></li><li><a href="/valorisation-fonciere/hautes-pyrenees-65/"><span class="num">65</span>Hautes-Pyrénées</a></li><li><a href="/valorisation-fonciere/pyrenees-orientales-66/"><span class="num">66</span>Pyrénées-Orientales</a></li><li><a href="/valorisation-fonciere/bas-rhin-67/"><span class="num">67</span>Bas-Rhin</a></li><li><a href="/valorisation-fonciere/haut-rhin-68/"><span class="num">68</span>Haut-Rhin</a></li><li><a href="/valorisation-fonciere/rhone-69/"><span class="num">69</span>Rhône</a></li><li><a href="/valorisation-fonciere/haute-saone-70/"><span class="num">70</span>Haute-Saône</a></li><li><a href="/valorisation-fonciere/saone-et-loire-71/"><span class="num">71</span>Saône-et-Loire</a></li><li><a href="/valorisation-fonciere/sarthe-72/"><span class="num">72</span>Sarthe</a></li><li><a href="/valorisation-fonciere/savoie-73/"><span class="num">73</span>Savoie</a></li><li><a href="/valorisation-fonciere/haute-savoie-74/"><span class="num">74</span>Haute-Savoie</a></li><li><a href="/valorisation-fonciere/paris-75/"><span class="num">75</span>Paris</a></li><li><a href="/valorisation-fonciere/seine-maritime-76/"><span class="num">76</span>Seine-Maritime</a></li><li><a href="/valorisation-fonciere/seine-et-marne-77/"><span class="num">77</span>Seine-et-Marne</a></li><li><a href="/valorisation-fonciere/yvelines-78/"><span class="num">78</span>Yvelines</a></li><li><a href="/valorisation-fonciere/deux-sevres-79/"><span class="num">79</span>Deux-Sèvres</a></li><li><a href="/valorisation-fonciere/somme-80/"><span class="num">80</span>Somme</a></li><li><a href="/valorisation-fonciere/tarn-81/"><span class="num">81</span>Tarn</a></li><li><a href="/valorisation-fonciere/tarn-et-garonne-82/"><span class="num">82</span>Tarn-et-Garonne</a></li><li><a href="/valorisation-fonciere/var-83/"><span class="num">83</span>Var</a></li><li><a href="/valorisation-fonciere/vaucluse-84/"><span class="num">84</span>Vaucluse</a></li><li><a href="/valorisation-fonciere/vendee-85/"><span class="num">85</span>Vendée</a></li><li><a href="/valorisation-fonciere/vienne-86/"><span class="num">86</span>Vienne</a></li><li><a href="/valorisation-fonciere/haute-vienne-87/"><span class="num">87</span>Haute-Vienne</a></li><li><a href="/valorisation-fonciere/vosges-88/"><span class="num">88</span>Vosges</a></li><li><a href="/valorisation-fonciere/yonne-89/"><span class="num">89</span>Yonne</a></li><li><a href="/valorisation-fonciere/territoire-de-belfort-90/"><span class="num">90</span>Territoire de Belfort</a></li><li><a href="/valorisation-fonciere/essonne-91/"><span class="num">91</span>Essonne</a></li><li><a href="/valorisation-fonciere/hauts-de-seine-92/"><span class="num">92</span>Hauts-de-Seine</a></li><li><a href="/valorisation-fonciere/seine-saint-denis-93/"><span class="num">93</span>Seine-Saint-Denis</a></li><li><a href="/valorisation-fonciere/val-de-marne-94/"><span class="num">94</span>Val-de-Marne</a></li><li><a href="/valorisation-fonciere/val-d-oise-95/"><span class="num">95</span>Val-d'Oise</a></li><li><a href="/valorisation-fonciere/guadeloupe-971/"><span class="num">971</span>Guadeloupe</a></li><li><a href="/valorisation-fonciere/martinique-972/"><span class="num">972</span>Martinique</a></li><li><a href="/valorisation-fonciere/guyane-973/"><span class="num">973</span>Guyane</a></li><li><a href="/valorisation-fonciere/la-reunion-974/"><span class="num">974</span>La Réunion</a></li><li><a href="/valorisation-fonciere/mayotte-976/"><span class="num">976</span>Mayotte</a></li></ul>
+  </div>
+</section>
+
+<section class="section white">
+  <div class="wrap" style="max-width:860px">
+    <div class="label">Questions fréquentes</div>
+    <h2>Vos questions, <em>nos réponses</em></h2>
+    <div class="faq"><details><summary>Comment savoir si mon terrain intéresse un développeur solaire, un data center ou un opérateur de batteries ?</summary><p>Sélectionnez vos parcelles sur notre carte : nous analysons gratuitement la surface, l'urbanisme, les contraintes environnementales et surtout la distance au réseau électrique, qui est le critère décisif pour la plupart des projets énergétiques et numériques.</p></details><details><summary>Combien coûte l'accompagnement de Foncier Stratégie ?</summary><p>Rien tant que votre terrain n'est pas loué ou vendu. Nos honoraires sont perçus uniquement au succès, selon un taux fixé par écrit avant toute démarche.</p></details><details><summary>Faut-il une surface minimale ?</summary><p>Non. Un parc de batteries ou une antenne relais occupe moins d'un hectare, une centrale solaire en demande généralement au moins 5, un campus data center plusieurs dizaines. Chaque terrain a son projet.</p></details><details><summary>Intervenez-vous partout en France ?</summary><p>Oui, dans tous les départements de métropole et d'outre-mer, pour les particuliers, indivisions, agriculteurs, sociétés et collectivités.</p></details><details><summary>Mon terrain sera-t-il diffusé publiquement ?</summary><p>Non. Votre terrain n'est présenté qu'aux opérateurs sélectionnés, avec votre accord, et n'apparaît sur aucune plateforme d'annonces.</p></details></div>
+  </div>
+</section>
+<section class="cta-band"><h2>Votre terrain vaut plus que vous ne le pensez</h2><p>Déposez vos parcelles gratuitement : nous identifions les projets possibles et les opérateurs intéressés, en toute confidentialité.</p><a class="btn btn-dark" href="/deposer-mon-terrain/">Déposer mon terrain gratuitement</a></section>
+</main>
+<footer class="footer">
   <div class="footer-grid">
     <div>
       <div class="footer-logo">FONCIER STRATÉGIE</div>
-      <div class="footer-logo-sub">Conseil & Valorisation</div>
-      <p class="footer-desc">Cabinet indépendant spécialisé dans la valorisation foncière, intervenant sur toute la France pour propriétaires privés, agriculteurs, sociétés et collectivités.</p>
+      <div class="footer-sub">Conseil &amp; Valorisation</div>
+      <p>Cabinet indépendant de valorisation foncière. Nous aidons propriétaires, agriculteurs, entreprises et collectivités à louer ou vendre leurs terrains aux développeurs et opérateurs, partout en France.</p>
+      <a class="footer-mail" href="mailto:contact@foncierstrategie.fr">✉ contact@foncierstrategie.fr</a>
     </div>
-    <div>
-      <div class="footer-title">Valorisations</div>
-      <ul class="footer-links">
-        <li><a onclick="showCarte()">Projet solaire & agrivoltaïque</a></li>
-        <li><a onclick="showCarte()">Projet éolien</a></li>
-        <li><a onclick="showCarte()">Promotion immobilière</a></li>
-        <li><a onclick="showCarte()">Projet industriel</a></li>
-        <li><a onclick="showCarte()">Data center & batteries</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer-title">Cessions</div>
-      <ul class="footer-links">
-        <li><a onclick="showCarte()">Terrain constructible</a></li>
-        <li><a onclick="showCarte()">Forêt</a></li>
-        <li><a onclick="showCarte()">Domaine de chasse</a></li>
-        <li><a onclick="showCarte()">Étang & friche</a></li>
-        <li><a onclick="showCarte()">Entrepôt</a></li>
-      </ul>
-    </div>
-    <div>
-      <div class="footer-title">Contact</div>
-      <div class="footer-contact-item"><span class="footer-contact-icon">📍</span><span class="footer-contact-text">Paris<br>Interventions sur toute la France</span></div>
-      <div class="footer-contact-item"><span class="footer-contact-icon">✉️</span><span class="footer-contact-text"><a href="mailto:contact@foncierstrategie.fr" style="color:rgba(255,255,255,0.45);text-decoration:none;">contact@foncierstrategie.fr</a></span></div>
-    </div>
+    <div><h2>Énergie</h2><ul><li><a href="/location-terrain-photovoltaique/">Centrale solaire au sol</a></li><li><a href="/agrivoltaisme/">Agrivoltaïsme</a></li><li><a href="/location-terrain-stockage-batterie/">Stockage par batteries (BESS)</a></li><li><a href="/terrain-data-center/">Data center</a></li><li><a href="/location-terrain-eolienne/">Éolien</a></li></ul></div>
+    <div><h2>Autres valorisations</h2><ul><li><a href="/terrain-carriere-contrat-de-fortage/">Carrière &amp; fortage</a></li><li><a href="/terrain-remblais-isdi/">Remblais &amp; ISDI</a></li><li><a href="/vendre-terrain-logistique-industriel/">Industrie &amp; logistique</a></li><li><a href="/vendre-terrain-promoteur-immobilier/">Promotion immobilière</a></li><li><a href="/vendre-terrain-agricole/">Terres agricoles</a></li><li><a href="/vendre-foret/">Forêts &amp; bois</a></li></ul></div>
+    <div><h2>Régions</h2><ul><li><a href="/valorisation-fonciere/auvergne-rhone-alpes/">Auvergne-Rhône-Alpes</a></li><li><a href="/valorisation-fonciere/bourgogne-franche-comte/">Bourgogne-Franche-Comté</a></li><li><a href="/valorisation-fonciere/bretagne/">Bretagne</a></li><li><a href="/valorisation-fonciere/centre-val-de-loire/">Centre-Val de Loire</a></li><li><a href="/valorisation-fonciere/corse/">Corse</a></li><li><a href="/valorisation-fonciere/grand-est/">Grand Est</a></li><li><a href="/valorisation-fonciere/hauts-de-france/">Hauts-de-France</a></li><li><a href="/valorisation-fonciere/ile-de-france/">Île-de-France</a></li><li><a href="/valorisation-fonciere/normandie/">Normandie</a></li><li><a href="/valorisation-fonciere/nouvelle-aquitaine/">Nouvelle-Aquitaine</a></li><li><a href="/valorisation-fonciere/occitanie/">Occitanie</a></li><li><a href="/valorisation-fonciere/pays-de-la-loire/">Pays de la Loire</a></li><li><a href="/valorisation-fonciere/provence-alpes-cote-d-azur/">Provence-Alpes-Côte d'Azur</a></li><li><a href="/valorisation-fonciere/">Outre-mer et départements</a></li></ul></div>
   </div>
-  <div class="footer-bottom">
-    <span class="footer-copy">© 2025 Foncier Stratégie. Tous droits réservés.</span>
-    <div class="footer-legal"><a href="javascript:void(0)">Mentions légales</a><a href="javascript:void(0)">Confidentialité</a><a href="javascript:void(0)">CGU</a></div>
-  </div>
+  <div class="footer-bottom"><span>© 2026 Foncier Stratégie</span><span><a href="/mentions-legales/">Mentions légales</a><a href="/confidentialite/">Confidentialité</a></span></div>
 </footer>
-</div>
-
-<!-- CARTE PAGE -->
-<div id="cartePage" class="carte-page">
-  <div class="carte-wrapper">
-    <div class="carte-sidebar">
-      <div class="sidebar-header"><h3>Déposer mon bien</h3><p>Sélectionnez vos parcelles sur la carte, précisez votre projet et laissez-nous vos coordonnées.</p></div>
-      <div class="sidebar-body">
-        <div class="mobile-cadastre-info">💻 <strong>Sélection cadastrale sur ordinateur</strong><br>Pour localiser précisément vos parcelles sur la carte interactive, connectez-vous depuis un ordinateur.</div>
-        <div class="desktop-map-section"><div class="form-section-title">Localisation par adresse</div>
-        <div class="map-instruction"><strong>Comment ça marche :</strong> Recherchez une adresse ou zoomez sur la carte → cliquez sur votre parcelle pour la sélectionner (couche cadastrale activée).</div>
-        <div class="form-section-title">Parcelles sélectionnées</div>
-        <div id="parcelsList"><p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p></div>
-        </div><!-- end desktop-map-section -->
-        <div class="form-section-title">Type de projet</div>
-        <p style="font-size:.72rem;color:var(--gray);margin-bottom:.75rem">Sélectionnez un ou plusieurs types :</p>
-        <div class="projects-grid">
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="solaire"><span class="proj-chip-icon">☀️</span>Projet solaire</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="agrivoltaique"><span class="proj-chip-icon">🌾</span>Agrivoltaïque</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="eolien"><span class="proj-chip-icon">🌬️</span>Projet éolien</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="industriel"><span class="proj-chip-icon">🏭</span>Projet industriel</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="immobilier"><span class="proj-chip-icon">🏗️</span>Promotion immo.</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="touristique"><span class="proj-chip-icon">🏰</span>Tourisme</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="carriere"><span class="proj-chip-icon">⛏️</span>Carrière</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="remblais"><span class="proj-chip-icon">🚛</span>Remblais</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="batteries"><span class="proj-chip-icon">🔋</span>Batteries</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="datacenter"><span class="proj-chip-icon">🖥️</span>Data center</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="friche"><span class="proj-chip-icon">🌿</span>Friche</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="compensation"><span class="proj-chip-icon">🌳</span>Compensation enviro.</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="terres"><span class="proj-chip-icon">🌾</span>Terres agricoles</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="foret"><span class="proj-chip-icon">🌲</span>Forêt</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="constructible"><span class="proj-chip-icon">📐</span>Constructible</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="entrepot"><span class="proj-chip-icon">🏢</span>Entrepôt</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="chasse"><span class="proj-chip-icon">🦌</span>Chasse</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="etang"><span class="proj-chip-icon">🦆</span>Étang</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="antenne"><span class="proj-chip-icon">📡</span>Antenne</div>
-          <div class="proj-chip" onclick="toggleProject(this)" data-value="autre" style="grid-column:span 2"><span class="proj-chip-icon">💡</span>Autre / idée de projet</div>
-        </div>
-        <div class="form-section-title">Informations</div>
-        <div class="form-group"><label>Surface (ha)</label><input type="number" id="surface" placeholder="ex : 12.5" min="0" step="0.1"></div>
-        <div class="form-group"><label>Description</label><textarea id="description" placeholder="Nature, accès, situation, particularités…"></textarea></div>
-        <div class="form-section-title">Vos coordonnées</div>
-        <div class="form-group"><label>Nom *</label><input type="text" id="nom" placeholder="Votre nom"></div>
-        <div class="form-group"><label>Prénom *</label><input type="text" id="prenom" placeholder="Votre prénom"></div>
-        <div class="form-group"><label>Téléphone *</label><input type="tel" id="tel" placeholder="06 XX XX XX XX"></div>
-        <div class="form-group"><label>Email *</label><input type="email" id="email" placeholder="votre@email.fr"></div>
-        <div class="form-group"><label>Qualité</label><select id="qualite"><option value="">— Votre qualité —</option><option>Propriétaire privé</option><option>Indivision / héritiers</option><option>SCI / Société</option><option>Collectivité / Commune</option><option>Agriculteur / Exploitant</option><option>Autre</option></select></div>
-        <div style="background:rgba(184,151,58,0.06);border:1px solid rgba(184,151,58,0.2);border-radius:2px;padding:12px;margin-top:1.5rem;font-size:.72rem;color:var(--gray);line-height:1.6">🔒 <strong style="color:var(--navy)">Confidentialité garantie.</strong> Vos informations sont transmises exclusivement à notre équipe.</div>
-        <button class="submit-btn" onclick="submitForm()">Envoyer ma demande →</button>
-        <p style="font-size:.68rem;color:var(--gray);text-align:center;margin-top:1rem;line-height:1.6">Un conseiller vous contactera sous 48h ouvrées.</p>
-      </div>
-    </div>
-    <div class="map-outer">
-      <div class="search-address-bar"><input type="text" id="addressSearch" placeholder="Rechercher une adresse, commune…" onkeypress="if(event.key==='Enter')searchAddress()"><button onclick="searchAddress()">🔍</button></div>
-      <div id="map"></div>
-      <div id="mapFallback" style="display:none;position:absolute;inset:0;background:var(--navy);align-items:center;justify-content:center;flex-direction:column;gap:1rem;z-index:10"><div style="font-size:2rem">🗺️</div><div style="color:var(--white);font-family:var(--font-serif)">Carte non disponible</div><div style="color:rgba(255,255,255,0.5);font-size:.78rem;text-align:center;max-width:280px;line-height:1.7">Précisez votre commune et référence cadastrale dans la description.</div></div>
-      <div class="map-controls">
-        <button class="map-layer-btn active" id="btnCadastreOn" onclick="toggleCadastre(true)">Cadastre ON</button>
-      </div>
-      <div id="parcelsBadge" style="display:none;position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:#D4AF57;color:#0F1E2D;padding:9px 22px;border-radius:3px;font-size:.78rem;font-weight:700;z-index:500;box-shadow:0 3px 12px rgba(0,0,0,0.25);border:2px solid #0F1E2D;align-items:center;white-space:nowrap;"></div>
-      <div class="map-info-box" id="mapInfoBox">Zoomez et cliquez sur une parcelle pour la sélectionner</div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL -->
-<div class="modal-overlay" id="successModal">
-  <div class="modal-box">
-    <div class="modal-icon">✅</div>
-    <div class="modal-title">Demande envoyée</div>
-    <p class="modal-text">Un expert Foncier Stratégie vous contactera sous <strong>48h ouvrées</strong>. La confidentialité de votre dossier est notre priorité absolue.</p>
-    <button class="modal-close" onclick="closeModal()">Retour à l'accueil</button>
-  </div>
-</div>
-
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-const SUPABASE_URL = 'https://hzwmnxsxgoajlqmfvyip.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDkyNzksImV4cCI6MjA5MTM4NTI3OX0.u8oscqp4mc2hY9WmUWnDqqKqfXIyFDgQWK0K75sSAUE';
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const mainSite = document.getElementById('mainSite');
-const cartePage = document.getElementById('cartePage');
-let mapInitialized = false;
-
-function showMain(){mainSite.style.display='block';cartePage.classList.remove('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);}
-function showCarte(){mainSite.style.display='none';cartePage.classList.add('active');var rp=document.getElementById('recherchePage');if(rp)rp.style.display='none';window.scrollTo(0,0);if(!mapInitialized){loadMapLibre(()=>{setTimeout(()=>{initMap();mapInitialized=true;},150);});}else{setTimeout(()=>{if(map)map.resize();},200);}return false;}
-function showMainAndScroll(id){showMain();setTimeout(()=>{const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth'});},100);return false;}
-function toggleDrawer(){document.getElementById('navDrawer').classList.toggle('open');}
-
-try{const o=new IntersectionObserver(e=>e.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible');}),{threshold:.12});document.querySelectorAll('.reveal').forEach(el=>o.observe(el));}catch(e){document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));}
-
-const selectedProjects=new Set();
-function toggleProject(el){const v=el.dataset.value;if(selectedProjects.has(v)){selectedProjects.delete(v);el.classList.remove('selected');}else{selectedProjects.add(v);el.classList.add('selected');}}
-
-function loadMapLibre(cb){
-  if(window.maplibregl){cb();return;}
-  if(!document.getElementById('ml-css')){const l=document.createElement('link');l.id='ml-css';l.rel='stylesheet';l.href='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';document.head.appendChild(l);}
-  const s=document.createElement('script');s.src='https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-  s.onload=()=>{if(window.maplibregl)cb();else document.getElementById('mapFallback').style.display='flex';};
-  s.onerror=()=>{document.getElementById('mapFallback').style.display='flex';};
-  document.head.appendChild(s);
-}
-const CADASTRE_TILES='https://openmaptiles.geo.data.gouv.fr/data/cadastre.json';
-const SAT_TILES='https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
-function makeMapStyle(){return{version:8,glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',sources:{satellite:{type:'raster',tiles:[SAT_TILES],tileSize:256,attribution:'© IGN',maxzoom:21},cadastre:{type:'vector',url:CADASTRE_TILES},'sel':{type:'geojson',data:{type:'FeatureCollection',features:[]}}},layers:[{id:'satellite',type:'raster',source:'satellite'},{id:'parc-fill',type:'fill',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'fill-color':'transparent','fill-opacity':0.01}},{id:'parc-line',type:'line',source:'cadastre','source-layer':'parcelles',minzoom:13,paint:{'line-color':'#FF6B00','line-width':1}},{id:'sel-fill',type:'fill',source:'sel',paint:{'fill-color':'#D4AF57','fill-opacity':0.55}},{id:'sel-line',type:'line',source:'sel',paint:{'line-color':'#0F1E2D','line-width':2.5}}]};}
-function getBounds(geom){const b=new maplibregl.LngLatBounds();function add(c){if(typeof c[0]==='number')b.extend(c);else c.forEach(add);}add(geom.coordinates);return b;}
-let map,selectedParcels=[],selGeoJSON={type:'FeatureCollection',features:[]};
-function initMap(){
-  if(!window.maplibregl){document.getElementById('mapFallback').style.display='flex';return;}
-  try{
-    map=new maplibregl.Map({container:'map',style:makeMapStyle(),center:[2.5,46.5],zoom:6});
-    map.addControl(new maplibregl.NavigationControl(),'top-right');
-    map.on('mouseenter','parc-fill',()=>{map.getCanvas().style.cursor='pointer';});
-    map.on('mouseleave','parc-fill',()=>{map.getCanvas().style.cursor='';});
-    map.on('click',onMapClick);map.on('zoom',updateMapHint);map.on('load',updateMapHint);
-    setTimeout(()=>{if(map)map.resize();},300);
-  }catch(e){console.error(e);document.getElementById('mapFallback').style.display='flex';}
-}
-function updateMapHint(){if(!map)return;const z=map.getZoom(),box=document.getElementById('mapInfoBox');if(z<13)box.textContent='🔍 Zoomez sur votre commune pour voir les parcelles';else if(z<15)box.textContent='📐 Parcelles visibles — cliquez sur la vôtre';else box.textContent='✅ Cliquez sur une parcelle pour la sélectionner';}
-function toggleCadastre(on){if(!map)return;document.getElementById('btnCadastreOn').classList.toggle('active',on);const v=on?'visible':'none';['parc-fill','parc-line'].forEach(l=>{if(map.getLayer(l))map.setLayoutProperty(l,'visibility',v);});}
-function onMapClick(e){
-  const z=map.getZoom();
-  if(z<13){showMapInfo('🔍 Zoomez davantage pour identifier une parcelle');return;}
-  const features=map.queryRenderedFeatures(e.point,{layers:['parc-fill']});
-  if(features.length>0){
-    const f=features[0],p=f.properties;
-    const id=p.id||p.idu||(''+( p.commune||'')+(p.prefixe||'')+(p.section||'')+(p.numero||''));
-    if(selectedParcels.find(x=>x.id===id)){showMapInfo('ℹ️ Parcelle déjà sélectionnée');return;}
-    selGeoJSON.features.push({type:'Feature',geometry:f.geometry,properties:{id}});
-    if(map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);
-    try{map.fitBounds(getBounds(f.geometry),{padding:60,maxZoom:18});}catch(ex){}
-    const surface=p.contenance?(p.contenance>=10000?(p.contenance/10000).toFixed(2)+' ha':p.contenance+' m²'):'—';
-    selectedParcels.push({id,commune:p.nom_com||p.nomcom||p.commune||'—',section:p.section||'—',numero:p.numero||'—',surface});
-    renderParcels();showMapInfo('✅ Parcelle sélectionnée — '+surface);
-  }else{
-    showMapInfo('⚠️ Zoomez davantage (zoom ≥ 15) et cliquez sur une parcelle orange');
-  }
-}
-function removeParcel(id){selectedParcels=selectedParcels.filter(x=>x.id!==id);selGeoJSON.features=selGeoJSON.features.filter(f=>f.properties.id!==id);if(map&&map.getSource('sel'))map.getSource('sel').setData(selGeoJSON);renderParcels();}
-function renderParcels(){const l=document.getElementById('parcelsList');const badge=document.getElementById('parcelsBadge');if(!selectedParcels.length){l.innerHTML='<p class="parcels-empty">Aucune parcelle sélectionnée — cliquez sur la carte</p>';if(badge)badge.style.display='none';return;}if(badge){badge.style.display='flex';badge.textContent='📌 '+selectedParcels.length+' parcelle'+(selectedParcels.length>1?'s':'')+' sélectionnée'+(selectedParcels.length>1?'s':'');}l.innerHTML=selectedParcels.map(p=>`<div class="parcel-item"><div><div class="parcel-ref">${p.id}</div><div class="parcel-details">${p.commune} · ${p.section} · N°${p.numero} · ${p.surface}</div></div><button class="parcel-remove" onclick="removeParcel('${p.id}')">✕</button></div>`).join('');}
-function showMapInfo(msg){document.getElementById('mapInfoBox').textContent=msg;setTimeout(()=>{if(map)document.getElementById('mapInfoBox').textContent=map.getZoom()<14?'🔍 Zoomez davantage':'✅ Cliquez sur une parcelle';},3500);}
-async function searchAddress(){const q=document.getElementById('addressSearch').value.trim();if(!q||!map)return;try{const r=await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);const d=await r.json();if(d.features&&d.features.length){const[lng,lat]=d.features[0].geometry.coordinates;map.flyTo({center:[lng,lat],zoom:17});new maplibregl.Marker().setLngLat([lng,lat]).setPopup(new maplibregl.Popup().setHTML(d.features[0].properties.label)).addTo(map).togglePopup();}}catch(e){}}
-async function submitForm(){
-  const n=document.getElementById('nom').value.trim(),p=document.getElementById('prenom').value.trim(),t=document.getElementById('tel').value.trim(),e=document.getElementById('email').value.trim();
-  if(!n||!p||!t||!e){alert('Veuillez remplir les champs obligatoires.');return;}
-  if(!selectedProjects.size){alert('Veuillez sélectionner au moins un type de projet.');return;}
-  try {
-    const {error} = await db.from('depositions').insert({
-      nom:n, prenom:p, tel:t, email:e,
-      qualite:document.getElementById('qualite').value,
-      surface:parseFloat(document.getElementById('surface').value)||null,
-      description:document.getElementById('description').value,
-      projets:[...selectedProjects].join(', '),
-      parcelles:JSON.stringify(selectedParcels)
-    });
-    if(error){alert('Erreur : '+error.message);return;}
-  } catch(err){alert('Erreur connexion : '+err.message);return;}
-  document.getElementById('successModal').classList.add('active');
-}
-function closeModal(){document.getElementById('successModal').classList.remove('active');showMain();}
-</script>
-
-<!-- RECHERCHE PAGE -->
-<div id="recherchePage" style="display:none;min-height:100vh;">
-  <div class="carte-wrapper" style="grid-template-columns:1fr;height:auto;">
-    <div class="carte-sidebar" style="border-right:none;max-width:680px;margin:0 auto;width:100%;">
-      <div class="sidebar-header" style="background:linear-gradient(135deg,var(--navy-mid),var(--navy))">
-        <h3>Je recherche un bien</h3>
-        <p>Précisez vos critères et laissez-nous vos coordonnées. Notre équipe vous contactera sous 48h.</p>
-      </div>
-      <div class="sidebar-body">
-        <div class="form-section-title">Type de bien recherché</div>
-        <p style="font-size:.72rem;color:var(--gray);margin-bottom:.75rem">Sélectionnez un ou plusieurs types :</p>
-        <div class="projects-grid">
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="solaire"><span class="proj-chip-icon">☀️</span>Projet solaire</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="agrivoltaique"><span class="proj-chip-icon">🌾</span>Agrivoltaïque</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="eolien"><span class="proj-chip-icon">🌬️</span>Projet éolien</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="industriel"><span class="proj-chip-icon">🏭</span>Projet industriel</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="immobilier"><span class="proj-chip-icon">🏗️</span>Promotion immo.</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="touristique"><span class="proj-chip-icon">🏰</span>Tourisme</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="carriere"><span class="proj-chip-icon">⛏️</span>Carrière</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="remblais"><span class="proj-chip-icon">🚛</span>Remblais</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="batteries"><span class="proj-chip-icon">🔋</span>Batteries</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="datacenter"><span class="proj-chip-icon">🖥️</span>Data center</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="friche"><span class="proj-chip-icon">🌿</span>Friche</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="compensation"><span class="proj-chip-icon">🌳</span>Compensation enviro.</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="terres"><span class="proj-chip-icon">🌾</span>Terres agricoles</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="foret"><span class="proj-chip-icon">🌲</span>Forêt</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="constructible"><span class="proj-chip-icon">📐</span>Constructible</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="entrepot"><span class="proj-chip-icon">🏢</span>Entrepôt</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="chasse"><span class="proj-chip-icon">🦌</span>Chasse</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="etang"><span class="proj-chip-icon">🦆</span>Étang</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="antenne"><span class="proj-chip-icon">📡</span>Antenne</div>
-          <div class="proj-chip" onclick="toggleRProject(this)" data-value="autre" style="grid-column:span 2"><span class="proj-chip-icon">💡</span>Autre / bien non listé</div>
-        </div>
-        <div class="form-section-title">Critères</div>
-        <div class="form-group"><label>Surface minimale (ha)</label><input type="number" id="r_surface" placeholder="ex : 5" min="0" step="0.5"></div>
-        <div class="form-group"><label>Précisions</label><textarea id="r_description" placeholder="Zone géographique, accès, PLU souhaité, configuration, contraintes…"></textarea></div>
-        <div class="form-section-title">Vos coordonnées</div>
-        <div class="form-group"><label>Nom *</label><input type="text" id="r_nom" placeholder="Votre nom"></div>
-        <div class="form-group"><label>Prénom *</label><input type="text" id="r_prenom" placeholder="Votre prénom"></div>
-        <div class="form-group"><label>Société</label><input type="text" id="r_societe" placeholder="Votre société"></div>
-        <div class="form-group"><label>Téléphone *</label><input type="tel" id="r_tel" placeholder="06 XX XX XX XX"></div>
-        <div class="form-group"><label>Email *</label><input type="email" id="r_email" placeholder="votre@email.fr"></div>
-        <div class="form-group"><label>Qualité</label><select id="r_qualite"><option value="">— Votre qualité —</option><option>Développeur / Opérateur</option><option>Promoteur immobilier</option><option>Investisseur</option><option>Industriel / Logisticien</option><option>Agriculteur / Exploitant</option><option>Collectivité</option><option>Particulier</option><option>Autre</option></select></div>
-        <div style="background:rgba(184,151,58,0.06);border:1px solid rgba(184,151,58,0.2);border-radius:2px;padding:12px;margin-top:1.5rem;font-size:.72rem;color:var(--gray);line-height:1.6">🔒 <strong style="color:var(--navy)">Confidentialité garantie.</strong> Vos critères sont transmis exclusivement à notre équipe.</div>
-        <button class="submit-btn" onclick="submitRForm()">Envoyer ma recherche →</button>
-        <p style="font-size:.68rem;color:var(--gray);text-align:center;margin-top:1rem;line-height:1.6">Un conseiller vous contactera sous 48h ouvrées.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL RECHERCHE -->
-<div class="modal-overlay" id="rSuccessModal">
-  <div class="modal-box">
-    <div class="modal-icon">🎯</div>
-    <div class="modal-title">Recherche envoyée</div>
-    <p class="modal-text">Un conseiller Foncier Stratégie vous contactera sous <strong>48h ouvrées</strong>. Votre demande est bien enregistrée.</p>
-    <button class="modal-close" onclick="closeRModal()">Retour à l'accueil</button>
-  </div>
-</div>
+<script>window.FS_CONFIG={"supabaseUrl":"https://hzwmnxsxgoajlqmfvyip.supabase.co","supabaseKey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDkyNzksImV4cCI6MjA5MTM4NTI3OX0.u8oscqp4mc2hY9WmUWnDqqKqfXIyFDgQWK0K75sSAUE","email":"contact@foncierstrategie.fr"};</script>
+<script src="/assets/site.js" defer></script>
+</body>
+</html>
