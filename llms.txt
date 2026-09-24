@@ -1,0 +1,48 @@
+# Foncier Stratégie
+
+> Cabinet indépendant de valorisation foncière en France. Nous aidons les propriétaires de terrains (particuliers, agriculteurs, entreprises, collectivités) à louer ou vendre leur foncier à des développeurs et opérateurs : centrales solaires au sol, agrivoltaïsme, stockage par batteries (BESS), data centers, éolien, carrières (contrat de fortage), remblais et ISDI, logistique, promotion immobilière, forêts, friches, compensation écologique, antennes relais. Étude gratuite, honoraires au succès uniquement. Contact : contact@foncierstrategie.fr
+
+## Outils
+- [Déposer mon terrain (sélection des parcelles sur carte)](https://foncierstrategie.fr/deposer-mon-terrain/)
+- [Je recherche un terrain (développeurs, opérateurs)](https://foncierstrategie.fr/je-recherche-un-terrain/)
+
+## Solutions
+- [Louer son terrain pour une centrale photovoltaïque](https://foncierstrategie.fr/location-terrain-photovoltaique/): Location de terrain pour centrale photovoltaïque au sol : loyer à l'hectare, bail emphytéotique, critères des développeurs. Déposez vos parcelles gratuitement, réponse sous 48 h.
+- [Projet agrivoltaïque sur terres agricoles](https://foncierstrategie.fr/agrivoltaisme/): Agrivoltaïsme en grande culture, élevage ovin ou bovin, vigne, arboriculture : cadre de la loi APER, loyer, bail et partage de la valeur. Faites étudier vos parcelles gratuitement.
+- [Louer un terrain pour un parc de batteries](https://foncierstrategie.fr/location-terrain-stockage-batterie/): Les opérateurs de stockage d'électricité par batteries (BESS) recherchent des terrains de 0,5 à 5 ha près des postes électriques. Loyer, critères, bail : déposez vos parcelles gratuitement.
+- [Vendre ou louer un terrain pour un data center](https://foncierstrategie.fr/terrain-data-center/): Les opérateurs de data centers et de campus IA recherchent des terrains de 2 à 50 ha raccordables au réseau électrique haute tension. Critères, valeur, démarche : faites étudier votre terrain.
+- [Louer son terrain pour une éolienne](https://foncierstrategie.fr/location-terrain-eolienne/): Loyer d'une éolienne sur votre terrain, durée du bail, indemnités de l'exploitant agricole, démantèlement : Foncier Stratégie vous accompagne gratuitement jusqu'à la signature.
+- [Valoriser un gisement : carrière, sablière, contrat de fortage](https://foncierstrategie.fr/terrain-carriere-contrat-de-fortage/): Votre terrain contient du sable, des graviers, de l'argile ou de la roche ? Contrat de fortage, redevance à la tonne, vente à un carrier, remise en état : nous vous accompagnons.
+- [Accueillir des terres de remblai ou une ISDI](https://foncierstrategie.fr/terrain-remblais-isdi/): Remblaiement agricole, exhaussement de terrain, installation de stockage de déchets inertes (ISDI) : règles, autorisations, rémunération. Faites étudier votre terrain gratuitement.
+- [Vendre un terrain à un industriel ou un logisticien](https://foncierstrategie.fr/vendre-terrain-logistique-industriel/): Industriels, logisticiens et promoteurs d'immobilier d'entreprise recherchent des terrains proches des autoroutes et des réseaux. Nous présentons votre foncier aux bons acquéreurs.
+- [Vendre un terrain constructible à un promoteur](https://foncierstrategie.fr/vendre-terrain-promoteur-immobilier/): Terrain constructible, grande propriété, division parcellaire : nous consultons plusieurs promoteurs pour obtenir le meilleur prix et sécuriser la promesse de vente.
+- [Vendre ou valoriser des terres agricoles](https://foncierstrategie.fr/vendre-terrain-agricole/): Vendre un terrain agricole loué ou libre, SAFER, droit de préemption du fermier, ou louer pour le solaire et le stockage : nous étudions toutes les options pour vos terres.
+- [Vendre ou valoriser une forêt](https://foncierstrategie.fr/vendre-foret/): Vente de forêt ou de parcelles boisées, droit de préférence des voisins, crédits carbone, compensation : nous trouvons l'acquéreur adapté à votre bois.
+- [Vendre ou reconvertir une friche industrielle](https://foncierstrategie.fr/friche-industrielle/): Friche industrielle, commerciale, agricole ou militaire : avec l'objectif zéro artificialisation nette, les friches sont recherchées pour le solaire, la logistique, le logement et les data centers.
+- [Valoriser un terrain en compensation écologique](https://foncierstrategie.fr/compensation-ecologique/): Zones humides, prairies, boisements : les aménageurs doivent compenser leurs impacts et recherchent des terrains. Obligation réelle environnementale, site naturel de compensation : nous vous accompagnons.
+- [Louer un emplacement pour une antenne relais](https://foncierstrategie.fr/location-terrain-antenne-relais/): Prix de location d'un terrain pour antenne relais, durée du bail, rachat du bail par un gestionnaire de pylônes : nous négocions pour vous.
+- [Territoire de chasse, étang, domaine touristique](https://foncierstrategie.fr/domaine-chasse-etang-tourisme/): Location de chasse, vente d'étang, projet d'hébergement touristique ou de loisirs : nous trouvons l'acquéreur ou le preneur adapté à votre domaine.
+
+## Guide
+- [Que faire de son terrain ? 15 façons de le valoriser ou de le rentabiliser](https://foncierstrategie.fr/valoriser-son-terrain/)
+
+## Territoires
+- [Toutes les régions et départements](https://foncierstrategie.fr/valorisation-fonciere/)
+- [Île-de-France](https://foncierstrategie.fr/valorisation-fonciere/ile-de-france/)
+- [Centre-Val de Loire](https://foncierstrategie.fr/valorisation-fonciere/centre-val-de-loire/)
+- [Bourgogne-Franche-Comté](https://foncierstrategie.fr/valorisation-fonciere/bourgogne-franche-comte/)
+- [Normandie](https://foncierstrategie.fr/valorisation-fonciere/normandie/)
+- [Hauts-de-France](https://foncierstrategie.fr/valorisation-fonciere/hauts-de-france/)
+- [Grand Est](https://foncierstrategie.fr/valorisation-fonciere/grand-est/)
+- [Pays de la Loire](https://foncierstrategie.fr/valorisation-fonciere/pays-de-la-loire/)
+- [Bretagne](https://foncierstrategie.fr/valorisation-fonciere/bretagne/)
+- [Nouvelle-Aquitaine](https://foncierstrategie.fr/valorisation-fonciere/nouvelle-aquitaine/)
+- [Occitanie](https://foncierstrategie.fr/valorisation-fonciere/occitanie/)
+- [Auvergne-Rhône-Alpes](https://foncierstrategie.fr/valorisation-fonciere/auvergne-rhone-alpes/)
+- [Provence-Alpes-Côte d'Azur](https://foncierstrategie.fr/valorisation-fonciere/provence-alpes-cote-d-azur/)
+- [Corse](https://foncierstrategie.fr/valorisation-fonciere/corse/)
+- [Guadeloupe](https://foncierstrategie.fr/valorisation-fonciere/guadeloupe/)
+- [Martinique](https://foncierstrategie.fr/valorisation-fonciere/martinique/)
+- [Guyane](https://foncierstrategie.fr/valorisation-fonciere/guyane/)
+- [La Réunion](https://foncierstrategie.fr/valorisation-fonciere/la-reunion/)
+- [Mayotte](https://foncierstrategie.fr/valorisation-fonciere/mayotte/)
