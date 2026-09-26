@@ -1,0 +1,49 @@
+# Garde le projet Supabase gratuit actif : sans activité pendant 7 jours, Supabase le met en pause
+# et les formulaires du site (dépôt de terrain, recherche) ne fonctionnent plus.
+name: Supabase — maintien en activité
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'   # tous les 3 jours vers 8 h (heure de Paris)
+  workflow_dispatch:         # lancement manuel possible depuis l'onglet Actions
+  push:
+    paths: ['.github/workflows/supabase-reveil.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  reveil:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: https://hzwmnxsxgoajlqmfvyip.supabase.co
+      # Clé publique « anon » (déjà présente dans les pages du site, lecture bloquée par les règles RLS)
+      SUPABASE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDkyNzksImV4cCI6MjA5MTM4NTI3OX0.u8oscqp4mc2hY9WmUWnDqqKqfXIyFDgQWK0K75sSAUE
+    steps:
+      - name: Requête vers la base Supabase
+        run: |
+          for table in depositions recherches; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 20 \
+              "$SUPABASE_URL/rest/v1/$table?select=id&limit=1" \
+              -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY")
+            echo "$table : HTTP $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::Supabase ne répond pas ($code). Le projet est peut-être en pause : connectez-vous sur supabase.com pour le relancer."
+              exit 1
+            fi
+          done
+
+      # GitHub désactive les tâches planifiées d'un dépôt sans commit depuis 60 jours :
+      # on ajoute un commit vide tous les ~50 jours pour que ce réveil ne s'arrête jamais.
+      - uses: actions/checkout@v4
+      - name: Garder le dépôt actif
+        run: |
+          dernier=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - dernier )) -gt $(( 50 * 86400 )) ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Maintien en activité automatique"
+            git push
+          else
+            echo "Dépôt actif récemment, rien à faire."
+          fi
