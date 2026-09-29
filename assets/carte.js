@@ -573,6 +573,6 @@
   /* ── Démarrage ── */
   maj();
   if (window.maplibregl) { initMap(); brancherZone(); }
-  if (partage.length) chargerPartage();   // n'attend pas l'affichage complet de la carte
   else $('map').innerHTML = '<p style="color:#fff;padding:120px 24px;text-align:center">La carte n\'a pas pu se charger. Utilisez « Je ne trouve pas mon terrain » pour décrire votre bien.</p>';
+  if (partage.length) chargerPartage();   // n'attend pas l'affichage complet de la carte
 })();
