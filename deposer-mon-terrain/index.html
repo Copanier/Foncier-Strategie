@@ -51,11 +51,15 @@
 
   <div class="c-float c-hint" id="hint" aria-live="polite">🔍 Cherchez une adresse ou zoomez sur votre terrain</div>
   <div class="c-float c-toast" id="toast" role="status"></div>
+  <div class="c-zone-rect" id="zoneRect" hidden></div>
+  <div class="c-reticule" aria-hidden="true"></div>
+  <div class="c-float c-repere-bar"><span>📍 Centrez la carte sur votre terrain</span><button type="button" class="c-valider" id="repereOk">Valider ce repère</button><button type="button" class="c-link" id="repereAnnuler">Annuler</button></div>
+  <div class="c-float c-reprise" id="reprise" hidden><span id="repriseTxt"></span><button type="button" class="c-valider" id="repriseOui">Reprendre</button><button type="button" class="c-link" id="repriseNon">Recommencer</button></div>
 
   <div class="c-float c-search">
     <div class="c-search-box" id="qbox">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="q" type="search" placeholder="Adresse, lieu-dit ou commune…" autocomplete="off" aria-label="Rechercher une adresse ou une commune" aria-controls="results" enterkeyhint="search">
+      <input id="q" type="search" placeholder="Adresse, commune ou parcelle (ex. ZB 12)…" autocomplete="off" aria-label="Rechercher une adresse, une commune ou une référence cadastrale" aria-controls="results" enterkeyhint="search">
       <button type="button" id="qclear" aria-label="Effacer">×</button>
     </div>
     <ul class="c-results" id="results" role="listbox"></ul>
@@ -64,6 +68,7 @@
   <div class="c-float c-tools">
     <button type="button" class="c-btn" id="aideBtn" aria-label="Comment ça marche ?">?</button>
     <button type="button" class="c-btn fond" id="fondBtn" aria-label="Changer le fond de carte">🗺️ <span>Plan</span></button>
+    <button type="button" class="c-btn" id="zoneBtn" aria-label="Sélection par zone : tracer un rectangle" title="Sélection par zone">▭</button>
   </div>
 
   <section class="c-float c-panel" id="panel" aria-label="Parcelles sélectionnées">
@@ -71,10 +76,17 @@
       <span class="c-count"><strong id="nb">Parcelle sélectionnée : 0</strong><span id="surf">Superficie totale : 0 ha</span></span>
       <span class="c-chev" aria-hidden="true">▾</span>
     </button>
+    <div class="c-outils" role="toolbar" aria-label="Outils de sélection">
+      <button type="button" id="annuler" disabled title="Annuler la dernière action">↶<span>Annuler</span></button>
+      <button type="button" id="refBtn" title="Ajouter par référence cadastrale">#<span>Référence</span></button>
+      <button type="button" id="partager" disabled title="Envoyer le lien à un proche ou à votre notaire">🔗<span>Partager</span></button>
+      <button type="button" id="copier" disabled title="Copier les références cadastrales">📋<span>Copier</span></button>
+      <button type="button" id="effacer" disabled title="Tout effacer">🗑<span>Effacer</span></button>
+    </div>
     <ul class="c-list" id="liste"></ul>
     <div class="c-panel-foot">
       <button type="button" class="c-valider" id="valider" disabled>Valider mes parcelles</button>
-      <button type="button" class="c-link" id="sansCarte">Je ne trouve pas mon terrain sur la carte</button>
+      <button type="button" class="c-link" id="perdu">Je ne trouve pas mon terrain sur la carte</button>
     </div>
   </section>
 
@@ -109,11 +121,17 @@
         </div>
         <div class="f-group"><label for="tel">Téléphone *</label><input id="tel" type="tel" autocomplete="tel" inputmode="tel"></div>
         <div class="f-group"><label for="email">E-mail *</label><input id="email" type="email" autocomplete="email" inputmode="email"></div>
+        <div class="f-title">Quand souhaitez-vous être rappelé ?</div>
+        <div class="f-row">
+          <div class="f-group"><label for="rappelDate">Date</label><input id="rappelDate" type="date"></div>
+          <div class="f-group"><label for="rappelCreneau">Créneau</label><select id="rappelCreneau"><option value="">Indifférent</option><option value="matin">Matin (9 h – 12 h)</option><option value="midi">Midi (12 h – 14 h)</option><option value="apres-midi">Après-midi (14 h – 18 h)</option><option value="soir">Soir (18 h – 20 h)</option></select></div>
+        </div>
+        <div class="f-group"><label for="message">Votre message</label><textarea id="message" placeholder="Posez-nous vos questions ou précisez votre demande…"></textarea></div>
         <div class="hp" aria-hidden="true"><label for="hp">Ne pas remplir</label><input id="hp" tabindex="-1" autocomplete="off"></div>
         <label class="consent"><input type="checkbox" id="consent"> J'accepte que Foncier Stratégie utilise ces informations pour étudier mon terrain et me recontacter. Elles ne sont jamais revendues (<a href="/confidentialite/" target="_blank">confidentialité</a>).</label>
       </div>
       <div class="c-step" id="s4">
-        <div class="c-done"><div class="ico">✅</div><h2>Demande bien reçue</h2><p>Un conseiller Foncier Stratégie étudie vos parcelles et vous recontacte sous <strong>48 h ouvrées</strong>. Votre dossier reste strictement confidentiel.</p><button type="button" class="c-valider" id="fin">Retour à l'accueil</button></div>
+        <div class="c-done"><div class="ico">✅</div><h2>Demande bien reçue</h2><p>Un conseiller Foncier Stratégie étudie vos parcelles et vous recontacte sous <strong>48 h ouvrées</strong>. Un e-mail de confirmation vient de vous être envoyé. Votre dossier reste strictement confidentiel.</p><button type="button" class="c-valider" id="fin">Retour à l'accueil</button></div>
       </div>
       <div class="msg" id="err" role="alert"></div>
     </div>
@@ -124,11 +142,35 @@
     <div class="c-help-box">
       <h2 id="helpTitle">Comment ça marche&nbsp;?</h2>
       <ol>
-        <li><b>1. Trouvez votre terrain</b>Tapez l'adresse, le lieu-dit ou la commune, ou utilisez le bouton de localisation.</li>
-        <li><b>2. Sélectionnez vos parcelles</b>Zoomez jusqu'à voir les contours orange, puis touchez chaque parcelle. Touchez à nouveau pour la retirer.</li>
+        <li><b>1. Trouvez votre terrain</b>Tapez l'adresse, la commune ou directement une référence cadastrale (ex. « Pézenas ZB 12 »), ou utilisez le bouton de localisation.</li>
+        <li><b>2. Sélectionnez vos parcelles</b>Zoomez jusqu'à voir les contours orange, puis touchez chaque parcelle (touchez à nouveau pour la retirer). Le bouton ▭ permet d'en sélectionner plusieurs d'un coup.</li>
         <li><b>3. Validez</b>Appuyez sur « Valider mes parcelles », indiquez votre projet et vos coordonnées. C'est gratuit et sans engagement.</li>
       </ol>
       <button type="button" class="c-valider" id="helpOk">Chercher mes parcelles</button>
+    </div>
+  </div>
+
+  <div class="c-help" id="refDlg" hidden role="dialog" aria-modal="true" aria-labelledby="refTitle">
+    <div class="c-help-box">
+      <h2 id="refTitle">Ajouter par référence cadastrale</h2>
+      <div class="f-group"><label for="refCommune">Commune (nom ou code INSEE)</label><input id="refCommune" placeholder="ex. Pézenas — vide = commune affichée sur la carte"></div>
+      <div class="f-group"><label for="refLignes">Références (une par ligne)</label><textarea id="refLignes" placeholder="ZB 12&#10;ZB 13, 14 et 15&#10;Montagnac AC 102"></textarea></div>
+      <p class="c-ref-aide">La référence figure sur votre avis de taxe foncière ou votre acte de propriété : une section (1 ou 2 lettres) et un numéro.</p>
+      <p class="c-ref-msg" id="refMsg" role="alert"></p>
+      <button type="button" class="c-valider" id="refGo">Ajouter ces parcelles</button>
+      <button type="button" class="c-link" id="refFermer">Fermer</button>
+    </div>
+  </div>
+
+  <div class="c-help" id="perduDlg" hidden role="dialog" aria-modal="true" aria-labelledby="perduTitle">
+    <div class="c-help-box">
+      <h2 id="perduTitle">Vous ne trouvez pas votre terrain&nbsp;?</h2>
+      <div class="c-choix">
+        <button type="button" id="perduRef"><b># J'ai ma référence cadastrale</b>Section et numéro, sur l'avis de taxe foncière ou l'acte.</button>
+        <button type="button" id="perduRepere"><b>📍 Placer un repère sur la carte</b>Indiquez simplement l'emplacement approximatif.</button>
+        <button type="button" id="perduSansCarte"><b>✉ Continuer sans carte</b>Décrivez votre terrain, nous le retrouverons.</button>
+      </div>
+      <button type="button" class="c-link" id="perduFermer">Fermer</button>
     </div>
   </div>
 </main>
