@@ -501,8 +501,6 @@
   $('back').addEventListener('click', function () { if (etape === 3) montrer(2); else fermerForm(); });
   $('fin').addEventListener('click', function () { location.href = '/'; });
 
-  // Date de rappel : pas avant aujourd'hui
-  (function () { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); $('rappelDate').min = d.toISOString().slice(0, 10); })();
 
   document.querySelectorAll('#chips .chip').forEach(function (b) {
     if (projets.has(b.dataset.v)) b.setAttribute('aria-pressed', 'true');
@@ -532,14 +530,12 @@
     var desc = val('description');
     if (sansCarte && !repere) desc = 'Commune : ' + val('commune') + (val('refs') ? ' — Références cadastrales : ' + val('refs') : '') + (desc ? '\n' + desc : '');
     if (repere) desc = '📍 Repère placé par le propriétaire : ' + location.origin + '/deposer-mon-terrain/?c=' + repere.join(',') + '&z=17' + (val('refs') ? ' — Références : ' + val('refs') : '') + (desc ? '\n' + desc : '');
-    var rappel = val('rappelDate') ? val('rappelDate') + (val('rappelCreneau') ? '|' + val('rappelCreneau') : '') : (val('rappelCreneau') ? '|' + val('rappelCreneau') : '');
     return {
       nom: val('nom'), prenom: val('prenom'), tel: val('tel'), email: val('email'),
       qualite: $('qualite').value,
       surface: parseFloat(($('surface').value || '').replace(',', '.')) || null,
       description: desc,
       message: val('message') || null,
-      date_rappel: rappel || null,
       projets: Array.from(projets).join(', '),
       parcelles: JSON.stringify(selection.map(function (p) {
         return { id: p.idu, commune: p.commune, insee: p.insee, section: p.section, numero: p.numero,
@@ -566,7 +562,7 @@
   function secours(d, detail) {
     if (window.console) console.warn('Supabase :', detail);
     var corps = 'Nom : ' + d.prenom + ' ' + d.nom + '\nTéléphone : ' + d.tel + '\nE-mail : ' + d.email + '\nQualité : ' + d.qualite +
-      '\nProjets : ' + d.projets + '\nSurface : ' + (d.surface || '') + ' ha\nRappel souhaité : ' + (d.date_rappel || '') +
+      '\nProjets : ' + d.projets + '\nSurface : ' + (d.surface || '') + ' ha' +
       '\n\nMessage : ' + (d.message || '') + '\n\n' + d.description + '\n\nParcelles :\n' + texteReferences() + '\n\nCarte : ' + lienPartage();
     var href = 'mailto:' + CFG.email + '?subject=' + encodeURIComponent('Dépôt de terrain — ' + d.prenom + ' ' + d.nom) + '&body=' + encodeURIComponent(corps);
     erreur('L\'envoi automatique n\'a pas fonctionné. <a href="' + href + '"><b>Cliquez ici pour nous l\'envoyer par e-mail</b></a> (vos informations sont déjà remplies) ou écrivez-nous à ' + CFG.email + '.');

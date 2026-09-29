@@ -51,7 +51,7 @@
         if (r.error) return secours();
         form.reset(); choix.clear(); form.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
         btn.disabled = false;
-        info('<b>Recherche envoyée.</b> Nous revenons vers vous sous 48 h ouvrées.', true);
+        info('<b>Recherche envoyée.</b> Nous revenons vers vous dans les 48 heures.', true);
       }, secours);
     } catch (err) { secours(); }
   });
