@@ -97,7 +97,10 @@ h2 em{color:var(--gold);font-style:italic}
 
 /* Bloc « outil carte » */
 .tool{display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(2rem,5vw,5rem);align-items:center}
-.tool-visual{aspect-ratio:4/3;border-radius:4px;overflow:hidden;position:relative;background:#2b3a2a url('https://images.unsplash.com/photo-1592982537447-7440770cbfc9?w=1200&q=70') center/cover;box-shadow:0 30px 60px rgba(15,30,45,.25)}
+.tool-visual{display:block;aspect-ratio:4/3;border-radius:6px;overflow:hidden;position:relative;background:#3a4a35;box-shadow:0 30px 60px rgba(15,30,45,.25);text-decoration:none}
+.tool-btn{position:absolute;left:16px;right:16px;bottom:30px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);text-align:center;font-weight:700;font-size:.9rem;padding:13px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.3);max-width:340px}
+.tool-credit{position:absolute;right:8px;bottom:6px;font-size:.62rem;color:rgba(255,255,255,.85);text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.tool-visual:hover .tool-btn{box-shadow:0 8px 28px rgba(184,151,58,.5)}
 .tool-visual svg{position:absolute;inset:0;width:100%;height:100%}
 .tool-chip{position:absolute;left:16px;top:16px;background:#fff;border-radius:6px;padding:10px 14px;font-size:.8rem;box-shadow:0 6px 20px rgba(0,0,0,.25);color:var(--navy)}
 .tool-chip strong{display:block}
