@@ -260,3 +260,6 @@ h2 em{color:var(--gold);font-style:italic}
 .specialistes p{margin-bottom:.8rem}
 .specialistes p:last-child{margin-bottom:0}
 .specialistes strong{color:var(--gold-light)}
+
+.rgpd-note{font-size:.72rem;color:var(--gray);line-height:1.55;margin-top:.6rem}
+.rgpd-note a{color:inherit}
