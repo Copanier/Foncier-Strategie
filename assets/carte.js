@@ -532,6 +532,7 @@
     if (repere) desc = '📍 Repère placé par le propriétaire : ' + location.origin + '/deposer-mon-terrain/?c=' + repere.join(',') + '&z=17' + (val('refs') ? ' — Références : ' + val('refs') : '') + (desc ? '\n' + desc : '');
     return {
       nom: val('nom'), prenom: val('prenom'), tel: val('tel'), email: val('email'),
+      societe: val('societe') || null,
       qualite: $('qualite').value,
       surface: parseFloat(($('surface').value || '').replace(',', '.')) || null,
       description: desc,
@@ -561,7 +562,7 @@
   // Si l'enregistrement échoue, on propose l'envoi par e-mail pour ne jamais perdre un contact.
   function secours(d, detail) {
     if (window.console) console.warn('Supabase :', detail);
-    var corps = 'Nom : ' + d.prenom + ' ' + d.nom + '\nTéléphone : ' + d.tel + '\nE-mail : ' + d.email + '\nQualité : ' + d.qualite +
+    var corps = 'Nom : ' + d.prenom + ' ' + d.nom + (d.societe ? ' (' + d.societe + ')' : '') + '\nTéléphone : ' + d.tel + '\nE-mail : ' + d.email + '\nQualité : ' + d.qualite +
       '\nProjets : ' + d.projets + '\nSurface : ' + (d.surface || '') + ' ha' +
       '\n\nMessage : ' + (d.message || '') + '\n\n' + d.description + '\n\nParcelles :\n' + texteReferences() + '\n\nCarte : ' + lienPartage();
     var href = 'mailto:' + CFG.email + '?subject=' + encodeURIComponent('Dépôt de terrain — ' + d.prenom + ' ' + d.nom) + '&body=' + encodeURIComponent(corps);
