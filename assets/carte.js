@@ -102,7 +102,7 @@
     map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, fitBoundsOptions: { maxZoom: 17 } }), 'top-right');
     map.on('load', function () {
       majFiltre(); majIndication();
-      if (partage.length) chargerPartage();
+      if (partage.length) { if (selection.length && !params.get('b')) cadrerSelection(true); }
       else if (selection.length && !aCentre && !aBornes) cadrerSelection(true);
     });
     map.on('zoomend', majIndication);
@@ -232,7 +232,7 @@
     Promise.all(partage.slice(0, 200).map(parcelleParIdu)).then(function (ps) {
       selection = ps.filter(Boolean); historique = [];
       maj(); $('panel').classList.add('open');
-      if (!params.get('b')) cadrerSelection(true);
+      if (map && map.loaded() && !params.get('b')) cadrerSelection(true);
       toast(selection.length + ' parcelle' + (selection.length > 1 ? 's' : '') + ' — ' + ha(total()), 3500);
     });
   }
@@ -572,5 +572,6 @@
   /* ── Démarrage ── */
   maj();
   if (window.maplibregl) { initMap(); brancherZone(); }
+  if (partage.length) chargerPartage();   // n'attend pas l'affichage complet de la carte
   else $('map').innerHTML = '<p style="color:#fff;padding:120px 24px;text-align:center">La carte n\'a pas pu se charger. Utilisez « Je ne trouve pas mon terrain » pour décrire votre bien.</p>';
 })();
