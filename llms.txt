@@ -1,6 +1,6 @@
 # Foncier Stratégie
 
-> Cabinet indépendant de valorisation foncière en France. Nous aidons les propriétaires de terrains (particuliers, agriculteurs, entreprises, collectivités) à louer ou vendre leur foncier à des développeurs et opérateurs : centrales solaires au sol, agrivoltaïsme, stockage par batteries (BESS), data centers, éolien, carrières (contrat de fortage), remblais et ISDI, logistique, promotion immobilière, forêts, friches, compensation écologique, antennes relais. Étude gratuite, honoraires au succès uniquement. Contact : contact@foncierstrategie.fr
+> Cabinet indépendant de valorisation foncière en France. Nous aidons les propriétaires de terrains (particuliers, agriculteurs, entreprises, collectivités) à louer ou vendre leur foncier à des développeurs et opérateurs : centrales solaires au sol, agrivoltaïsme, stockage par batteries (BESS), data centers, éolien, carrières (contrat de fortage), remblais et ISDI, logistique, promotion immobilière, forêts, friches, compensation écologique, antennes relais. Étude gratuite, aucun frais pour le propriétaire (honoraires pris en charge par le développeur retenu). Contact : contact@foncierstrategie.fr
 
 ## Outils
 - [Déposer mon terrain (sélection des parcelles sur carte)](https://www.foncierstrategie.fr/deposer-mon-terrain/)
