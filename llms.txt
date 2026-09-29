@@ -25,7 +25,7 @@
 
 ## Guides
 - [Que faire de son terrain ? 15 façons de le valoriser ou de le rentabiliser](https://www.foncierstrategie.fr/valoriser-son-terrain/)
-- [Combien rapporte un hectare de panneaux solaires ?](https://www.foncierstrategie.fr/guides/combien-rapporte-hectare-panneaux-solaires/): Loyer d'un terrain photovoltaïque en 2026 : fourchettes par hectare, facteurs qui font varier le prix, durée, fiscalité et pièges du contrat. Le guide complet pour les propriétaires.
+- [Combien rapporte un hectare de panneaux solaires ?](https://www.foncierstrategie.fr/guides/combien-rapporte-hectare-panneaux-solaires/): Loyer d'un terrain pour une centrale solaire au sol : ce qui fait monter ou baisser l'offre, durée du bail, fiscalité, pièges du contrat. Le guide pour obtenir la meilleure proposition.
 - [Combien rapporte une éolienne au propriétaire ?](https://www.foncierstrategie.fr/guides/combien-rapporte-une-eolienne/): Loyer d'une éolienne par MW, part du propriétaire et de l'agriculteur, indemnités, retombées pour la commune (IFER), durée du bail et démantèlement : les vrais chiffres.
 - [Bail emphytéotique photovoltaïque : loyer, durée, clauses](https://www.foncierstrategie.fr/guides/bail-emphyteotique-photovoltaique/): Durée, loyer, indexation, promesse de bail, démantèlement, fermier en place : tout ce qu'il faut vérifier avant de signer un bail emphytéotique pour une centrale solaire.
 - [Peut-on installer des panneaux solaires sur un terrain agricole ?](https://www.foncierstrategie.fr/guides/panneaux-solaires-terrain-agricole/): Agrivoltaïsme, terres incultes, document-cadre de la chambre d'agriculture, CDPENAF, zonage A du PLU : ce que la loi permet en 2026 pour le photovoltaïque sur terres agricoles.
