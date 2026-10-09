@@ -140,3 +140,48 @@ body.mode-repere .c-panel,body.mode-repere .c-hint{display:none}
   .c-reprise{top:auto;bottom:190px;flex-wrap:wrap;justify-content:center}
   body.mode-repere .c-repere-bar{flex-wrap:wrap;justify-content:center;width:calc(100% - 20px)}
 }
+
+/* ── Mobile : carte maximisée ── */
+.c-home{display:none}
+@media(max-width:760px){
+  /* En-tête du site masqué sur l'outil : bouton FS dans la barre de recherche */
+  body.page-carte .nav,body.page-carte .nav-drawer{display:none}
+  body.page-carte .carte{top:0}
+  .c-home{display:flex;align-items:center;justify-content:center;flex:0 0 34px;height:34px;margin-left:7px;border-radius:7px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:var(--navy);font:800 .72rem var(--sans);text-decoration:none}
+  .c-search{top:max(8px,env(safe-area-inset-top));left:8px;right:8px}
+  .c-search-box input{padding:11px 8px}
+  .c-search-box svg{margin-left:8px}
+
+  /* Boutons de droite plus petits ; zoom au doigt (boutons + et − masqués) */
+  .c-tools{top:64px;right:8px;gap:6px}
+  .c-btn,.c-btn.fond{width:38px;height:38px;font-size:.9rem}
+  .maplibregl-ctrl-top-right{top:194px!important;right:0!important}
+  .maplibregl-ctrl-zoom-in,.maplibregl-ctrl-zoom-out{display:none!important}
+  .maplibregl-ctrl-group button{width:38px!important;height:38px!important}
+
+  /* Message d'aide sur une ligne, qui s'efface */
+  .c-hint{top:64px;left:8px;right:54px;padding:6px 10px;font-size:.74rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left}
+  .c-hint.masque{opacity:0}
+
+  /* Panneau du bas : une seule ligne repliée (compteur + Valider), le reste au dépliage */
+  .c-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;max-height:75%}
+  .c-panel::before{grid-column:1/-1;margin:6px auto 0}
+  .c-panel-head{grid-column:1;grid-row:2;padding:8px 6px 8px 14px;gap:.5rem}
+  .c-count strong{font-size:.88rem}
+  .c-count span{font-size:.76rem}
+  .c-chev{width:26px;height:26px;font-size:.8rem}
+  .c-panel-foot{grid-column:2;grid-row:2;padding:8px 12px 8px 0;gap:0}
+  .c-panel-foot .c-valider{width:auto;padding:12px 14px;font-size:.84rem;white-space:nowrap}
+  .c-panel-foot .c-link{display:none}
+  .c-outils{display:none;grid-column:1/-1;grid-row:3;padding:0 12px 8px}
+  .c-list{grid-column:1/-1;grid-row:4;max-height:32vh}
+  .c-panel.open .c-outils{display:grid}
+  .c-panel.open .c-panel-foot{grid-column:1/-1;grid-row:5;padding:4px 12px 10px;gap:.3rem}
+  .c-panel.open .c-panel-foot .c-valider{width:100%}
+  .c-panel.open .c-panel-foot .c-link,.c-panel.vide .c-panel-foot .c-link{display:block}
+  .c-panel.vide:not(.open) .c-panel-foot{grid-column:1/-1;grid-row:3;padding:0 12px 6px}
+  .c-panel.vide:not(.open) .c-panel-foot .c-valider{display:none}
+
+  .c-toast{bottom:84px}
+  .c-reprise{bottom:84px}
+}

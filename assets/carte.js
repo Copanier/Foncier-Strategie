@@ -112,13 +112,20 @@
     map.on('error', function (e) { if (window.console) console.warn('Carte :', e && e.error && e.error.message); });
   }
 
+  var hintTimer;
   function majIndication() {
     var h = $('hint');
     if (!map) return;
+    var avant = h.textContent;
     if (modeZone) h.textContent = '▭ Tracez un rectangle autour des parcelles à ajouter';
     else if (modeRepere) h.textContent = '📍 Centrez la carte sur votre terrain puis validez le repère';
     else if (map.getZoom() < ZOOM_PARCELLES) h.textContent = '🔍 Cherchez une adresse, une commune ou une référence (ex. ZB 12)';
     else h.textContent = selection.length ? '👆 Touchez d\'autres parcelles pour les ajouter ou les retirer' : '👆 Touchez une parcelle pour la sélectionner';
+    // Sur téléphone, le message s'affiche quelques secondes puis s'efface pour libérer la carte
+    if (h.textContent !== avant || modeZone || modeRepere) {
+      h.classList.remove('masque'); clearTimeout(hintTimer);
+      if (window.matchMedia('(max-width:760px)').matches && !modeZone && !modeRepere) hintTimer = setTimeout(function () { h.classList.add('masque'); }, 4500);
+    }
   }
 
   function clic(e) {
@@ -231,7 +238,8 @@
     toast('Chargement des parcelles partagées…', 4000);
     Promise.all(partage.slice(0, 200).map(parcelleParIdu)).then(function (ps) {
       selection = ps.filter(Boolean); historique = [];
-      maj(); $('panel').classList.add('open');
+      if (!window.matchMedia('(max-width:760px)').matches) $('panel').classList.add('open');
+      maj();
       if (map && map.loaded() && !params.get('b')) cadrerSelection(true);
       toast(selection.length + ' parcelle' + (selection.length > 1 ? 's' : '') + ' — ' + ha(total()), 3500);
     });
@@ -242,8 +250,11 @@
     if (!partage.length || selection.length) ecrire();
     majFiltre(); majIndication();
     var n = selection.length;
-    $('nb').textContent = 'Parcelle' + (n > 1 ? 's' : '') + ' sélectionnée' + (n > 1 ? 's' : '') + ' : ' + n;
-    $('surf').textContent = 'Superficie totale : ' + ha(total()) + (repere ? ' · 📍 repère placé' : '');
+    $('panel').classList.toggle('vide', n === 0 && !repere);
+    var court = window.matchMedia('(max-width:760px)').matches && !$('panel').classList.contains('open');   // libellés courts sur téléphone
+    $('nb').textContent = court ? n + ' parcelle' + (n > 1 ? 's' : '')
+      : 'Parcelle' + (n > 1 ? 's' : '') + ' sélectionnée' + (n > 1 ? 's' : '') + ' : ' + n;
+    $('surf').textContent = (court ? ha(total()) + ' au total' : 'Superficie totale : ' + ha(total())) + (repere ? ' · 📍 repère' : '');
     $('valider').disabled = n === 0 && !repere;
     $('annuler').disabled = !historique.length;
     ['effacer', 'partager', 'copier'].forEach(function (id) { $(id).disabled = n === 0; });
@@ -262,6 +273,7 @@
   $('panelHead').addEventListener('click', function () {
     var p = $('panel'); p.classList.toggle('open');
     $('panelHead').setAttribute('aria-expanded', p.classList.contains('open'));
+    maj();   // libellés courts (replié) ou complets (déplié) sur téléphone
   });
   $('annuler').addEventListener('click', function () {
     if (!historique.length) return;
