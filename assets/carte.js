@@ -60,7 +60,9 @@
       sources: {
         ortho: { type: 'raster', tiles: [ORTHO], tileSize: 256, maxzoom: 19, attribution: '© IGN' },
         plan: { type: 'raster', tiles: [PLAN], tileSize: 256, maxzoom: 19, attribution: '© IGN' },
-        pci: { type: 'vector', tiles: [PCI], minzoom: 5, maxzoom: 17, attribution: 'Cadastre © DGFiP / IGN' }
+        pci: { type: 'vector', tiles: [PCI], minzoom: 5, maxzoom: 17, attribution: 'Cadastre © DGFiP / IGN' },
+        selGeo: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+        selPts: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }
       },
       layers: [
         { id: 'ortho', type: 'raster', source: 'ortho' },
@@ -75,6 +77,12 @@
           filter: ['in', ['get', 'idu'], ['literal', []]], paint: { 'fill-color': '#D4AF57', 'fill-opacity': 0.6 } },
         { id: 'sel-line', type: 'line', source: 'pci', 'source-layer': 'parcelle', minzoom: 12,
           filter: ['in', ['get', 'idu'], ['literal', []]], paint: { 'line-color': '#FFFFFF', 'line-width': 2.5 } },
+        // Parcelles sélectionnées hors tuiles : contour exact quand on dézoome, puis point doré de loin
+        { id: 'selgeo-fill', type: 'fill', source: 'selGeo', paint: { 'fill-color': '#D4AF57', 'fill-opacity': 0.6 } },
+        { id: 'selgeo-line', type: 'line', source: 'selGeo', paint: { 'line-color': '#FFFFFF', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1, 14, 2.5] } },
+        { id: 'sel-pts', type: 'circle', source: 'selPts', maxzoom: 13.5,
+          paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 5, 13, 7], 'circle-color': '#D4AF57', 'circle-stroke-color': '#FFFFFF', 'circle-stroke-width': 2,
+            'circle-opacity': ['interpolate', ['linear'], ['zoom'], 11.5, 1, 13.5, 0], 'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 11.5, 1, 13.5, 0] } },
         { id: 'num', type: 'symbol', source: 'pci', 'source-layer': 'localisant', minzoom: 17,
           layout: { 'text-field': ['to-string', ['to-number', ['get', 'numero']]], 'text-font': ['Source Sans Pro Bold Italic'], 'text-size': 12 },
           paint: { 'text-color': '#FFFFFF', 'text-halo-color': 'rgba(0,0,0,.75)', 'text-halo-width': 1.4 } },
@@ -151,6 +159,39 @@
     if (!map || !map.getLayer('sel-fill')) return;
     var f = ['in', ['get', 'idu'], ['literal', selection.map(function (p) { return p.idu; })]];
     map.setFilter('sel-fill', f); map.setFilter('sel-line', f);
+    majGeo(); chargerGeometries();
+  }
+
+  /* ── Contours des parcelles sélectionnées (API Carto), pour les voir aussi en vue dézoomée ── */
+  var geometries = {}, enCours = {};
+  function urlIdu(idu) {
+    var u = CADASTRE + '?code_insee=' + idu.slice(0, 5) + '&section=' + idu.slice(8, 10) + '&numero=' + idu.slice(10, 14);
+    return idu.slice(5, 8) !== '000' ? u + '&com_abs=' + idu.slice(5, 8) : u;
+  }
+  function majGeo() {
+    if (!map || !map.getSource('selGeo')) return;
+    map.getSource('selGeo').setData({ type: 'FeatureCollection', features: selection.filter(function (p) { return geometries[p.idu]; })
+      .map(function (p) { return { type: 'Feature', properties: { idu: p.idu }, geometry: geometries[p.idu] }; }) });
+    map.getSource('selPts').setData({ type: 'FeatureCollection', features: selection.filter(function (p) { return p.point; })
+      .map(function (p) { return { type: 'Feature', properties: { idu: p.idu }, geometry: { type: 'Point', coordinates: p.point } }; }) });
+  }
+  var attenteGeo;
+  function chargerGeometries() {
+    var manquantes = selection.filter(function (p) { return p.idu && !geometries[p.idu] && !enCours[p.idu]; }).slice(0, 200);
+    if (!manquantes.length) return;
+    var file = manquantes.slice();
+    manquantes.forEach(function (p) { enCours[p.idu] = true; });
+    function suivant() {
+      var p = file.shift(); if (!p) return Promise.resolve();
+      return fetch(urlIdu(p.idu)).then(function (r) { return r.json(); }).then(function (d) {
+        var g = (d.features || [])[0]; if (g) geometries[p.idu] = g.geometry;
+      }).catch(function () {}).then(function () {
+        delete enCours[p.idu];
+        clearTimeout(attenteGeo); attenteGeo = setTimeout(majGeo, 150);
+        return suivant();
+      });
+    }
+    for (var i = 0; i < 4; i++) suivant();
   }
 
   function bornes() {
