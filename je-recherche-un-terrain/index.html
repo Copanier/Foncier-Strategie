@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Raleway:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/style.css?v=9783d45f">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-<link rel="stylesheet" href="/assets/recherche.css?v=8603dedf">
+<link rel="stylesheet" href="/assets/recherche.css?v=b0eedb34">
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ProfessionalService","@id":"https://www.foncierstrategie.fr/#org","name":"Foncier Stratégie","url":"https://www.foncierstrategie.fr/","email":"contact@foncierstrategie.fr","logo":"https://www.foncierstrategie.fr/assets/favicon.svg","areaServed":{"@type":"Country","name":"France"},"description":"Cabinet indépendant de valorisation foncière : location et vente de terrains pour centrales solaires, agrivoltaïsme, stockage par batteries, data centers, éolien, carrières, logistique et promotion immobilière, partout en France.","knowsAbout":["Centrale solaire au sol","Agrivoltaïsme","Stockage par batteries (BESS)","Data center","Éolien","Carrière & fortage","Remblais & ISDI","Industrie & logistique","Promotion immobilière","Terres agricoles","Forêts & bois","Friches","Compensation écologique","Antenne relais","Chasse, étangs & tourisme"],"legalName":"ROUGEMONT","foundingDate":"2024","address":{"@type":"PostalAddress","addressLocality":"Oissery","postalCode":"77178","addressCountry":"FR"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Accueil","item":"https://www.foncierstrategie.fr/"},{"@type":"ListItem","position":2,"name":"Je recherche un terrain","item":"https://www.foncierstrategie.fr/je-recherche-un-terrain/"}]}]}</script>
 </head>
 <body>
@@ -113,7 +113,7 @@
       <div class="f-group rel"><label for="r_ville">Proche d'une ville</label><input id="r_ville" autocomplete="off" placeholder="Ex. Reims"><ul id="r_ville_res" class="ac" role="listbox"></ul></div>
       <div class="f-group"><label for="r_ville_km">À moins de (km)</label><input id="r_ville_km" inputmode="decimal" placeholder="Ex. 20"></div>
     </div>
-    <div class="f-group"><label for="r_secteurs">Régions ou départements ciblés</label><input id="r_secteurs" placeholder="Ex. Grand Est, Marne (51), Aube (10)…"></div>
+    <div class="f-group rel"><label for="r_terr">Communes, départements ou régions ciblés</label><input id="r_terr" autocomplete="off" placeholder="Tapez un nom : Reims, Marne, 51, Grand Est…"><ul id="r_terr_res" class="ac" role="listbox"></ul><div class="terr" id="r_terr_liste" aria-live="polite"></div></div>
 
     <div class="f-title">4. Critères techniques et réglementaires</div>
     <div class="f-row">
@@ -170,6 +170,6 @@
 <script>window.FS_CONFIG={"supabaseUrl":"https://hzwmnxsxgoajlqmfvyip.supabase.co","supabaseKey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDkyNzksImV4cCI6MjA5MTM4NTI3OX0.u8oscqp4mc2hY9WmUWnDqqKqfXIyFDgQWK0K75sSAUE","email":"contact@foncierstrategie.fr"};</script>
 <script src="/assets/site.js?v=d25bf0c4" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
-<script src="/assets/recherche.js?v=35a33903" defer></script>
+<script src="/assets/recherche.js?v=63f85201" defer></script>
 </body>
 </html>

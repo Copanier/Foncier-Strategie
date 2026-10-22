@@ -61,3 +61,13 @@
   .rz-liste li{flex-wrap:wrap}
   .rz-liste .rz-txt{flex-basis:calc(100% - 70px)}
 }
+
+/* Communes, départements, régions ciblés */
+.terr{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem}
+.terr:empty{display:none}
+.terr-item{display:inline-flex;align-items:center;gap:.4rem;background:var(--navy);color:#fff;border-radius:20px;padding:5px 6px 5px 12px;font-size:.82rem;font-weight:600}
+.terr-item[data-t="departement"]{background:#2E5C8A}
+.terr-item[data-t="commune"]{background:var(--gold);color:var(--navy)}
+.terr-item small{font-weight:400;font-size:.66rem;opacity:.8;text-transform:uppercase;letter-spacing:.5px}
+.terr-item button{border:0;background:rgba(255,255,255,.25);color:inherit;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:.7rem;line-height:1}
+.ac li[aria-disabled="true"]{color:var(--gray);cursor:default}

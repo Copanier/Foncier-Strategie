@@ -353,6 +353,68 @@
     }
   });
 
+  /* ── Communes, départements, régions ciblés : suggestions à la frappe, ajout / retrait en pastilles ── */
+  var GEO = 'https://geo.api.gouv.fr';
+  var territoires = [];             // { type: 'commune' | 'departement' | 'region', code, nom, dep?, deps? }
+  var TYPES_T = { commune: 'Commune', departement: 'Département', region: 'Région' };
+  function libT(t) { return t.type === 'commune' ? t.nom + ' (' + t.dep + ')' : t.type === 'departement' ? t.nom + ' (' + t.code + ')' : t.nom; }
+  function majTerritoires() {
+    $('r_terr_liste').innerHTML = territoires.map(function (t, i) {
+      return '<span class="terr-item" data-t="' + t.type + '">' + esc(libT(t)) + '<small>' + TYPES_T[t.type] + '</small><button type="button" data-x="' + i + '" aria-label="Retirer ' + esc(libT(t)) + '">✕</button></span>';
+    }).join('');
+  }
+  $('r_terr_liste').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-x]'); if (b) { territoires.splice(Number(b.dataset.x), 1); majTerritoires(); }
+  });
+  (function () {
+    var input = $('r_terr'), liste = $('r_terr_res'), res = [], actif = -1, timer, jeton = 0;
+    var json = function (u) { return fetch(u).then(function (r) { return r.ok ? r.json() : []; }).catch(function () { return []; }); };
+    function fermer() { liste.classList.remove('open'); }
+    function dessiner() {
+      if (!res.length) { liste.innerHTML = '<li aria-disabled="true">Aucun résultat</li>'; liste.classList.add('open'); return; }
+      liste.innerHTML = res.map(function (t, i) {
+        var deja = territoires.some(function (x) { return x.type === t.type && x.code === t.code; });
+        return '<li role="option" data-i="' + i + '" aria-selected="' + (i === actif) + '">' + esc(libT(t)) + (deja ? ' ✓' : '') + '<small>' + TYPES_T[t.type] + '</small></li>';
+      }).join('');
+      liste.classList.add('open');
+    }
+    function chercher(q) {
+      var n = ++jeton, code = q.toUpperCase().replace(/\s/g, '');
+      var req = /^(\d{1,3}|2[AB])$/.test(code)
+        ? [json(GEO + '/departements/' + (code.length === 1 ? '0' + code : code)).then(function (d) { return d && d.code ? [d] : []; }).then(function (l) { return l.map(function (d) { return { type: 'departement', code: d.code, nom: d.nom }; }); })]
+        : [json(GEO + '/regions?nom=' + encodeURIComponent(q) + '&limit=3').then(function (l) { return l.map(function (r) { return { type: 'region', code: r.code, nom: r.nom }; }); }),
+           json(GEO + '/departements?nom=' + encodeURIComponent(q) + '&limit=4').then(function (l) { return l.map(function (d) { return { type: 'departement', code: d.code, nom: d.nom }; }); }),
+           json(GEO + '/communes?nom=' + encodeURIComponent(q) + '&fields=nom,code,codeDepartement&boost=population&limit=6').then(function (l) { return l.map(function (c) { return { type: 'commune', code: c.code, nom: c.nom, dep: c.codeDepartement }; }); })];
+      Promise.all(req).then(function (r) {
+        if (n !== jeton) return;
+        res = [].concat.apply([], r).slice(0, 10); actif = res.length ? 0 : -1; dessiner();
+      });
+    }
+    function choisir(t) {
+      if (!t) return;
+      input.value = ''; fermer(); input.focus();
+      if (territoires.some(function (x) { return x.type === t.type && x.code === t.code; })) return;
+      territoires.push(t); majTerritoires();
+      if (t.type === 'region') json(GEO + '/regions/' + t.code + '/departements').then(function (l) { t.deps = l.map(function (d) { return d.code; }); });
+    }
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2 && !/^\d$/.test(q)) { fermer(); return; }
+      timer = setTimeout(function () { chercher(q); }, 200);
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !input.value && territoires.length) { territoires.pop(); majTerritoires(); return; }
+      if (!liste.classList.contains('open')) { if (e.key === 'Enter') e.preventDefault(); return; }
+      if (e.key === 'ArrowDown') { actif = Math.min(actif + 1, res.length - 1); dessiner(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { actif = Math.max(actif - 1, 0); dessiner(); e.preventDefault(); }
+      else if (e.key === 'Enter') { e.preventDefault(); choisir(res[actif]); }
+      else if (e.key === 'Escape') fermer();
+    });
+    liste.addEventListener('mousedown', function (e) { var li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); choisir(res[Number(li.dataset.i)]); } });
+    input.addEventListener('blur', function () { setTimeout(fermer, 150); });
+  })();
+
   /* ── Reprise d'une recherche partagée : ?z=… ── */
   var partage = new URLSearchParams(location.search).get('z');
   if (partage) zones = decoder(partage);
@@ -379,7 +441,8 @@
       surface: { min: smin, max: smax, unite: $('r_unite').value, min_ha: enHa(smin), max_ha: enHa(smax) },
       forme: { type: forme, longueur_min_m: forme === 'dimensions' ? num('r_long') : null, largeur_min_m: forme === 'dimensions' ? num('r_larg') : null, seul_tenant: $('r_tenant').checked },
       ville: villeChoisie ? { nom: villeChoisie.nom, insee: villeChoisie.insee, centre: villeChoisie.centre, distance_km: num('r_ville_km') } : (v('r_ville') ? { nom: v('r_ville'), distance_km: num('r_ville_km') } : null),
-      secteurs: v('r_secteurs') || null,
+      territoires: territoires.map(function (t) { var o = { type: t.type, code: t.code, nom: t.nom }; if (t.dep) o.dep = t.dep; if (t.deps) o.deps = t.deps; return o; }),
+      secteurs: territoires.map(libT).join(', ') || null,
       distance_poste_km: num('r_poste'), pente_max: num('r_pente'),
       zonages: choix('plu'), covisibilite: v('r_covis') || null, distance_habitations_m: num('r_habit'),
       exclusions: choix('exclusions'), besoins: choix('besoins'),
@@ -418,7 +481,7 @@
         if (r.error) { console.error(r.error); return secours(); }
         form.reset(); Object.keys(groupes).forEach(function (g) { groupes[g].clear(); });
         form.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
-        $('r_dims').hidden = true; zones = []; zoneVille = null; villeChoisie = null; maj(); choisirMode(null);
+        $('r_dims').hidden = true; territoires = []; majTerritoires(); zones = []; zoneVille = null; villeChoisie = null; maj(); choisirMode(null);
         btn.disabled = false; btn.textContent = 'Envoyer ma recherche';
         info('<b>Recherche enregistrée.</b> Nous la rapprochons dès maintenant des terrains proposés et revenons vers vous dans les 48 heures.', true);
       }, secours);
