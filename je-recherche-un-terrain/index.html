@@ -26,7 +26,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Raleway:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="/assets/style.css?v=9783d45f">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-<link rel="stylesheet" href="/assets/recherche.css?v=b0eedb34">
+<link rel="stylesheet" href="/assets/recherche.css?v=a6664c82">
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"ProfessionalService","@id":"https://www.foncierstrategie.fr/#org","name":"Foncier Stratégie","url":"https://www.foncierstrategie.fr/","email":"contact@foncierstrategie.fr","logo":"https://www.foncierstrategie.fr/assets/favicon.svg","areaServed":{"@type":"Country","name":"France"},"description":"Cabinet indépendant de valorisation foncière : location et vente de terrains pour centrales solaires, agrivoltaïsme, stockage par batteries, data centers, éolien, carrières, logistique et promotion immobilière, partout en France.","knowsAbout":["Centrale solaire au sol","Agrivoltaïsme","Stockage par batteries (BESS)","Data center","Éolien","Carrière & fortage","Remblais & ISDI","Industrie & logistique","Promotion immobilière","Terres agricoles","Forêts & bois","Friches","Compensation écologique","Antenne relais","Chasse, étangs & tourisme"],"legalName":"ROUGEMONT","foundingDate":"2024","address":{"@type":"PostalAddress","addressLocality":"Oissery","postalCode":"77178","addressCountry":"FR"}},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Accueil","item":"https://www.foncierstrategie.fr/"},{"@type":"ListItem","position":2,"name":"Je recherche un terrain","item":"https://www.foncierstrategie.fr/je-recherche-un-terrain/"}]}]}</script>
 </head>
 <body>
@@ -59,20 +59,25 @@
   <p class="lead">Développeurs photovoltaïques et agrivoltaïques, opérateurs de stockage et de data centers, carriers, logisticiens, promoteurs : décrivez précisément le terrain recherché et dessinez vos zones sur la carte. Nous vous présentons des terrains qualifiés, dont les propriétaires sont déjà vendeurs ou bailleurs, partout en France.</p>
 </div></section>
 <section class="section"><div class="wrap">
-  <form class="form-card rf" id="rechercheForm" novalidate>
-    <div class="f-title">1. Votre projet</div>
+  <form class="form-card rf simple" id="rechercheForm" novalidate>
+    <div class="modes" role="radiogroup" aria-label="Type de demande">
+      <label class="mode"><input type="radio" name="r_mode" value="simple" checked><span><b>⚡ Demande rapide</b>Cochez le ou les types de terrain, indiquez le secteur et décrivez votre besoin en quelques mots. 1 minute.</span></label>
+      <label class="mode"><input type="radio" name="r_mode" value="detaille"><span><b>🎯 Recherche détaillée</b>Surface et forme, zones sur la carte satellite, poste source, pente, PLU, covisibilité… pour un ciblage précis.</span></label>
+    </div>
+    <div class="f-title">Votre projet</div>
     <div class="f-label">Type de terrain recherché *</div>
     <div class="chips"><button type="button" class="chip" data-g="types" data-v="solaire" aria-pressed="false"><span aria-hidden="true">☀️</span>Centrale solaire au sol</button><button type="button" class="chip" data-g="types" data-v="agrivoltaique" aria-pressed="false"><span aria-hidden="true">🌾</span>Agrivoltaïsme</button><button type="button" class="chip" data-g="types" data-v="batteries" aria-pressed="false"><span aria-hidden="true">🔋</span>Stockage par batteries (BESS)</button><button type="button" class="chip" data-g="types" data-v="datacenter" aria-pressed="false"><span aria-hidden="true">🖥️</span>Data center</button><button type="button" class="chip" data-g="types" data-v="eolien" aria-pressed="false"><span aria-hidden="true">🌬️</span>Éolien</button><button type="button" class="chip" data-g="types" data-v="carriere" aria-pressed="false"><span aria-hidden="true">⛏️</span>Carrière &amp; fortage</button><button type="button" class="chip" data-g="types" data-v="remblais" aria-pressed="false"><span aria-hidden="true">🚛</span>Remblais &amp; ISDI</button><button type="button" class="chip" data-g="types" data-v="industriel" aria-pressed="false"><span aria-hidden="true">🏭</span>Industrie &amp; logistique</button><button type="button" class="chip" data-g="types" data-v="immobilier" aria-pressed="false"><span aria-hidden="true">🏗️</span>Promotion immobilière</button><button type="button" class="chip" data-g="types" data-v="terres" aria-pressed="false"><span aria-hidden="true">🌱</span>Terres agricoles</button><button type="button" class="chip" data-g="types" data-v="foret" aria-pressed="false"><span aria-hidden="true">🌲</span>Forêts &amp; bois</button><button type="button" class="chip" data-g="types" data-v="friche" aria-pressed="false"><span aria-hidden="true">🏚️</span>Friches</button><button type="button" class="chip" data-g="types" data-v="compensation" aria-pressed="false"><span aria-hidden="true">🌳</span>Compensation écologique</button><button type="button" class="chip" data-g="types" data-v="antenne" aria-pressed="false"><span aria-hidden="true">📡</span>Antenne relais</button><button type="button" class="chip" data-g="types" data-v="chasse" aria-pressed="false"><span aria-hidden="true">🦌</span>Chasse, étangs &amp; tourisme</button><button type="button" class="chip" data-g="types" data-v="autre" aria-pressed="false"><span aria-hidden="true">💡</span>Autre</button></div>
     <div class="f-row" style="margin-top:1.2rem">
       <div class="f-group"><label for="r_qualite">Vous êtes</label><select id="r_qualite"><option value="">—</option><option value="Développeur / opérateur">Développeur / opérateur</option><option value="Promoteur immobilier">Promoteur immobilier</option><option value="Investisseur">Investisseur</option><option value="Industriel / logisticien">Industriel / logisticien</option><option value="Carrier">Carrier</option><option value="Agriculteur / exploitant">Agriculteur / exploitant</option><option value="Collectivité">Collectivité</option><option value="Particulier">Particulier</option><option value="Autre">Autre</option></select></div>
-      <div class="f-group"><label for="r_puissance">Puissance visée (MWc / MW)</label><input id="r_puissance" inputmode="decimal" placeholder="Ex. 12"></div>
+      <div class="f-group det"><label for="r_puissance">Puissance visée (MWc / MW)</label><input id="r_puissance" inputmode="decimal" placeholder="Ex. 12"></div>
     </div>
-    <div class="f-row">
+    <div class="f-row det">
       <div class="f-group"><label for="r_maitrise">Maîtrise foncière souhaitée</label><select id="r_maitrise"><option value="">Indifférent</option><option value="achat">Achat</option><option value="bail-emphyteotique">Bail emphytéotique</option><option value="bail">Bail (autre)</option><option value="fortage">Contrat de fortage</option><option value="promesse">Promesse de bail / de vente</option></select></div>
       <div class="f-group"><label for="r_horizon">Horizon</label><select id="r_horizon"><option value="">—</option><option value="immediat">Immédiat</option><option value="6-mois">Moins de 6 mois</option><option value="1-an">Moins d'un an</option><option value="plus-1-an">Plus d'un an</option><option value="veille">Veille foncière</option></select></div>
     </div>
 
-    <div class="f-title">2. Surface et forme</div>
+    <div class="det">
+    <div class="f-title">Surface et forme</div>
     <div class="f-row3">
       <div class="f-group"><label for="r_smin">Surface minimale</label><input id="r_smin" inputmode="decimal" placeholder="Ex. 10"></div>
       <div class="f-group"><label for="r_smax">Surface maximale <small>(facultatif)</small></label><input id="r_smax" inputmode="decimal" placeholder="Sans maximum"></div>
@@ -89,8 +94,10 @@
       <div class="f-group"><label for="r_larg">Largeur minimale (m)</label><input id="r_larg" inputmode="decimal" placeholder="50"></div>
     </div>
     <label class="case"><input type="checkbox" id="r_tenant"> D'un seul tenant (parcelles contiguës)</label>
+    </div>
 
-    <div class="f-title">3. Localisation</div>
+    <div class="f-title">Localisation</div>
+    <div class="det">
     <p class="f-aide">Ajoutez une ou plusieurs zones : un <b>rayon autour d'un point</b> ou <b>d'une parcelle</b>, ou une <b>zone dessinée</b> à main levée. Sans zone, nous cherchons partout en France.</p>
     <div class="rz">
       <div class="rz-outils" role="toolbar" aria-label="Outils de zone">
@@ -113,9 +120,11 @@
       <div class="f-group rel"><label for="r_ville">Proche d'une ville</label><input id="r_ville" autocomplete="off" placeholder="Ex. Reims"><ul id="r_ville_res" class="ac" role="listbox"></ul></div>
       <div class="f-group"><label for="r_ville_km">À moins de (km)</label><input id="r_ville_km" inputmode="decimal" placeholder="Ex. 20"></div>
     </div>
+    </div>
     <div class="f-group rel"><label for="r_terr">Communes, départements ou régions ciblés</label><input id="r_terr" autocomplete="off" placeholder="Tapez un nom : Reims, Marne, 51, Grand Est…"><ul id="r_terr_res" class="ac" role="listbox"></ul><div class="terr" id="r_terr_liste" aria-live="polite"></div></div>
 
-    <div class="f-title">4. Critères techniques et réglementaires</div>
+    <div class="det">
+    <div class="f-title">Critères techniques et réglementaires</div>
     <div class="f-row">
       <div class="f-group"><label for="r_poste">Distance max. à un poste source (km)</label><input id="r_poste" inputmode="decimal" placeholder="Ex. 5"></div>
       <div class="f-group"><label for="r_pente">Pente maximale</label><select id="r_pente"><option value="">Peu importe</option><option value="2">Inférieure à 2 %</option><option value="5">Inférieure à 5 %</option><option value="10">Inférieure à 10 %</option><option value="15">Inférieure à 15 %</option><option value="20">Inférieure à 20 %</option></select></div>
@@ -130,11 +139,12 @@
     <div class="chips chips-s"><button type="button" class="chip" data-g="exclusions" data-v="inondable" aria-pressed="false">Zone inondable (PPRI)</button><button type="button" class="chip" data-g="exclusions" data-v="natura2000" aria-pressed="false">Natura 2000 / ZNIEFF</button><button type="button" class="chip" data-g="exclusions" data-v="humide" aria-pressed="false">Zone humide</button><button type="button" class="chip" data-g="exclusions" data-v="patrimoine" aria-pressed="false">Abords de monument historique</button><button type="button" class="chip" data-g="exclusions" data-v="boisement" aria-pressed="false">Boisement (défrichement)</button></div>
     <div class="f-label" style="margin-top:1.2rem">Besoins particuliers</div>
     <div class="chips chips-s"><button type="button" class="chip" data-g="besoins" data-v="poids-lourds" aria-pressed="false">Accès poids lourds</button><button type="button" class="chip" data-g="besoins" data-v="fibre" aria-pressed="false">Fibre optique</button><button type="button" class="chip" data-g="besoins" data-v="eau" aria-pressed="false">Réseau d'eau</button><button type="button" class="chip" data-g="besoins" data-v="autoroute" aria-pressed="false">Proche autoroute / échangeur</button><button type="button" class="chip" data-g="besoins" data-v="ferroviaire" aria-pressed="false">Embranchement ferroviaire</button></div>
+    </div>
 
-    <div class="f-title">5. Commentaire</div>
-    <div class="f-group"><label for="r_description">Précisions</label><textarea id="r_description" placeholder="Exposition, nature du sol, budget, calendrier, contraintes particulières…"></textarea></div>
+    <div class="f-title">Votre recherche en quelques mots</div>
+    <div class="f-group"><label for="r_description">Description</label><textarea id="r_description" placeholder="Surface souhaitée, puissance, délai, budget, contraintes particulières…"></textarea></div>
 
-    <div class="f-title">6. Vos coordonnées</div>
+    <div class="f-title">Vos coordonnées</div>
     <div class="f-row">
       <div class="f-group"><label for="r_prenom">Prénom *</label><input id="r_prenom" autocomplete="given-name"></div>
       <div class="f-group"><label for="r_nom">Nom *</label><input id="r_nom" autocomplete="family-name"></div>
@@ -170,6 +180,6 @@
 <script>window.FS_CONFIG={"supabaseUrl":"https://hzwmnxsxgoajlqmfvyip.supabase.co","supabaseKey":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh6d21ueHN4Z29hamxxbWZ2eWlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4MDkyNzksImV4cCI6MjA5MTM4NTI3OX0.u8oscqp4mc2hY9WmUWnDqqKqfXIyFDgQWK0K75sSAUE","email":"contact@foncierstrategie.fr"};</script>
 <script src="/assets/site.js?v=d25bf0c4" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js" integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous"></script>
-<script src="/assets/recherche.js?v=63f85201" defer></script>
+<script src="/assets/recherche.js?v=c53b922e" defer></script>
 </body>
 </html>

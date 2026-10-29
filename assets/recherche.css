@@ -71,3 +71,12 @@
 .terr-item small{font-weight:400;font-size:.66rem;opacity:.8;text-transform:uppercase;letter-spacing:.5px}
 .terr-item button{border:0;background:rgba(255,255,255,.25);color:inherit;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:.7rem;line-height:1}
 .ac li[aria-disabled="true"]{color:var(--gray);cursor:default}
+
+/* Choix demande rapide / recherche détaillée */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:1.8rem}
+.mode{display:flex;gap:.7rem;align-items:flex-start;padding:1rem 1.1rem;border:2px solid #DDD5C6;border-radius:6px;background:var(--cream);cursor:pointer;font-size:.84rem;line-height:1.5;color:var(--gray)}
+.mode b{display:block;font-size:1rem;color:var(--navy);margin-bottom:.2rem}
+.mode input{width:18px;height:18px;margin-top:.25rem;accent-color:var(--gold);flex-shrink:0}
+.mode:has(input:checked){border-color:var(--gold);background:#fff;box-shadow:0 4px 14px rgba(184,151,58,.18)}
+.rf.simple .det{display:none!important}
+@media(max-width:600px){.modes{grid-template-columns:1fr}}

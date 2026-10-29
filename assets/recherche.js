@@ -242,8 +242,8 @@
           trace: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }
         },
         layers: [
-          { id: 'ortho', type: 'raster', source: 'ortho', layout: { visibility: 'none' } },
-          { id: 'plan', type: 'raster', source: 'plan' },
+          { id: 'ortho', type: 'raster', source: 'ortho' },
+          { id: 'plan', type: 'raster', source: 'plan', layout: { visibility: 'none' } },
           { id: 'parc-fill', type: 'fill', source: 'pci', 'source-layer': 'parcelle', minzoom: ZOOM_PARCELLES, paint: { 'fill-color': '#FFFFFF', 'fill-opacity': 0.04 } },
           { id: 'parc-line', type: 'line', source: 'pci', 'source-layer': 'parcelle', minzoom: ZOOM_PARCELLES, paint: { 'line-color': '#E8901A', 'line-width': 0.8 } },
           { id: 'sel-parc', type: 'fill', source: 'pci', 'source-layer': 'parcelle', minzoom: 12, filter: ['in', ['get', 'idu'], ['literal', []]], paint: { 'fill-color': '#B8973A', 'fill-opacity': 0.7 } },
@@ -271,7 +271,7 @@
     map.setLayoutProperty('plan', 'visibility', sat ? 'visible' : 'none');
     $('rz_fond').textContent = sat ? 'Satellite' : 'Plan';
   });
-  $('rz_fond').textContent = 'Satellite';
+  $('rz_fond').textContent = 'Plan';
 
   /* ── Autocomplétion (recherche sur la carte et champ « ville ») ── */
   function autocomplete(input, liste, type, choisir) {
@@ -419,7 +419,19 @@
   var partage = new URLSearchParams(location.search).get('z');
   if (partage) zones = decoder(partage);
   majListe();
-  initCarte();
+
+  /* ── Demande rapide / recherche détaillée ── */
+  var detaille = false;
+  function choisirNiveau(m) {
+    detaille = m === 'detaille';
+    form.classList.toggle('simple', !detaille);
+    if (detaille) { if (!map) initCarte(); else map.resize(); }
+  }
+  form.querySelectorAll('input[name=r_mode]').forEach(function (r) { r.addEventListener('change', function () { if (r.checked) choisirNiveau(r.value); }); });
+  if (partage || new URLSearchParams(location.search).get('mode') === 'detaille') {
+    form.querySelector('input[name=r_mode][value=detaille]').checked = true;
+    choisirNiveau('detaille');
+  }
 
   /* ── Envoi ── */
   var msg = $('rMsg');
@@ -461,6 +473,11 @@
       zones: geojson(), criteres: criteres,
       parcelles: JSON.stringify(zones.filter(function (z) { return z.idu; }).map(function (z) { return { id: z.idu, commune: z.nom, point: z.centre, rayon_km: z.rayon }; }))
     };
+    if (!detaille) {                  // demande rapide : uniquement les champs affichés
+      criteres = { version: 2, mode: 'simple', territoires: criteres.territoires, secteurs: criteres.secteurs, lien_zones: null };
+      d = { nom: d.nom, prenom: d.prenom, tel: d.tel, email: d.email, societe: d.societe, qualite: d.qualite, types_bien: d.types_bien,
+        notes: d.notes, secteurs: criteres.secteurs, criteres: criteres, zones: { type: 'FeatureCollection', features: [] }, parcelles: '[]' };
+    } else criteres.mode = 'detaille';
     var btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Envoi en cours…';
     var secours = function () {
       btn.disabled = false; btn.textContent = 'Envoyer ma recherche';
@@ -479,7 +496,7 @@
         return r.error && /column|colonne|schema/i.test(r.error.message || '') ? db.from('recherches').insert(simple) : r;
       }).then(function (r) {
         if (r.error) { console.error(r.error); return secours(); }
-        form.reset(); Object.keys(groupes).forEach(function (g) { groupes[g].clear(); });
+        form.reset(); choisirNiveau('simple'); Object.keys(groupes).forEach(function (g) { groupes[g].clear(); });
         form.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
         $('r_dims').hidden = true; territoires = []; majTerritoires(); zones = []; zoneVille = null; villeChoisie = null; maj(); choisirMode(null);
         btn.disabled = false; btn.textContent = 'Envoyer ma recherche';
